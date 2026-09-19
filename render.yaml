@@ -1,0 +1,63 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+#
+# One web service. The app is already a single Node process serving the built
+# interface, the API, the audio and the multiplayer WebSocket on one port, so
+# nothing here needs a second service, a database or a Redis.
+#
+# Deploy from the Dashboard (Blueprints → New Blueprint Instance) or let the
+# Render CLI apply it; both read this file from the repository.
+
+services:
+  - type: web
+    name: guessthesong
+    runtime: node
+    # Free instance: spins down after 15 minutes without traffic and takes
+    # about a minute to come back. WebSocket messages count as traffic, so an
+    # active game keeps it awake. No persistent disk — nothing survives a
+    # deploy, a restart or a spin-down, which is why the music ships in the
+    # repository rather than being uploaded at runtime.
+    plan: free
+    # Closest region to France.
+    region: frankfurt
+    branch: main
+    autoDeployTrigger: commit
+
+    # `npm ci` installs exactly what package-lock.json pins (devDependencies
+    # included — Vite and TypeScript are needed to build). `npm run build`
+    # produces dist/, which the server serves in production.
+    buildCommand: npm ci && npm run build
+
+    # The server reads PORT from the environment and binds to 0.0.0.0.
+    startCommand: npm start
+
+    # The service is only considered live once this answers 200. It reports
+    # version, uptime, whether the library was found and how many tracks were
+    # indexed — and never a filesystem path.
+    healthCheckPath: /api/health
+
+    envVars:
+      # `--prod` is also in the start script; this covers anything that reads
+      # NODE_ENV directly.
+      - key: NODE_ENV
+        value: production
+
+      # The exact Node version this application was built and tested on.
+      # Render's own default is newer; pinning removes the guesswork.
+      - key: NODE_VERSION
+        value: 22.11.0
+
+      # Explicit rather than relying on Node's default of "every interface" —
+      # Render's proxy connects over IPv4.
+      - key: HOST
+        value: 0.0.0.0
+
+      # The music folder, relative to the project root. Override it here (or in
+      # the Dashboard) to point the game at a different folder.
+      - key: MUSIC_DIR
+        value: ./songs
+
+      # Inotify events are not delivered reliably on a container filesystem, and
+      # a watcher that never fires looks like a broken library. Rescanning is
+      # always available from the button in the top bar.
+      - key: WATCH
+        value: "0"

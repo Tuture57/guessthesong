@@ -1,0 +1,728 @@
+/* ── Round screen ───────────────────────────────────────────────────── */
+/*
+ * Composition, top to bottom: slim HUD, category tabs, the attempt rows (the
+ * one part that flexes), the timeline with its pointer, the play button, and
+ * the answer row. Everything except the rows has a fixed, fluid height, so on
+ * a short laptop the rows give up space instead of pushing the search field
+ * below the fold.
+ */
+
+.round {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ── HUD ────────────────────────────────────────────────────────────── */
+
+.hud {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.hud-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+.hud-label {
+  font-size: var(--text-label);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.hud-value {
+  font-size: var(--text-body);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  transition: color 0.3s;
+}
+
+.hud-value i {
+  font-style: normal;
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--dim);
+}
+
+.hud-value.is-hot {
+  color: var(--amber);
+}
+
+.hud-sep {
+  width: 1px;
+  height: calc(var(--text-body) * 1.4);
+  background: var(--line);
+}
+
+.hud-value.is-flashing {
+  animation: score-pop 0.5s var(--ease-spring);
+}
+
+@keyframes score-pop {
+  0% {
+    transform: scale(1);
+    color: var(--green-bright);
+  }
+  35% {
+    transform: scale(1.16);
+    color: var(--green-bright);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ── Category tabs ──────────────────────────────────────────────────── */
+
+.cat-tabs {
+  flex: none;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  margin: 0 auto var(--space-3);
+  width: fit-content;
+  max-width: 100%;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.cat-tab {
+  min-height: var(--control-h-sm);
+  padding: 0 var(--space-4);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: var(--text-small);
+  font-weight: 600;
+  transition: background 0.16s, color 0.16s;
+}
+
+.cat-tab:hover {
+  color: var(--text);
+}
+
+.cat-tab.is-active {
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
+/* ── Stage ──────────────────────────────────────────────────────────── */
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Stacked rows (the part that flexes) ────────────────────────────── */
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  /* An empty stack centres itself; a full one scrolls from the top. */
+  justify-content: center;
+  width: 100%;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+  /* Absorbs the leftover height, and never disappears entirely. */
+  flex: 1 1 auto;
+  min-height: 76px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  min-height: var(--row-h);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  animation: row-in 0.24s var(--ease) both;
+}
+
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.row-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: calc(var(--row-h) * 0.42);
+  height: calc(var(--row-h) * 0.42);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--muted);
+}
+
+.row-icon svg {
+  width: 62%;
+  height: 62%;
+}
+
+.row-text {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-body);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row.is-wrong .row-icon {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.row.is-correct .row-icon {
+  background: var(--green-soft);
+  color: var(--green-bright);
+}
+
+.row.is-skipped .row-icon {
+  color: var(--dim);
+}
+
+.row.is-idle {
+  border-style: dashed;
+  background: transparent;
+}
+
+.row.is-idle .row-text {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* An attempt slot waiting to be used: present, but quiet and lower than a
+   real attempt, so the rows you actually played stand out. */
+.row.is-empty {
+  min-height: calc(var(--row-h) * 0.68);
+  background: rgba(255, 255, 255, 0.015);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.row.is-you {
+  border-color: var(--line-strong);
+}
+
+/* ── Timeline ───────────────────────────────────────────────────────── */
+
+.timeline {
+  flex: none;
+  width: 100%;
+  margin-bottom: var(--space-3);
+}
+
+.duration-hero {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.duration-value {
+  font-size: clamp(20px, 2vh + 1vw, 28px);
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.duration-unit {
+  font-size: var(--text-label);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.duration-hero.is-swapping .duration-value {
+  animation: duration-swap 0.3s var(--ease);
+}
+
+@keyframes duration-swap {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+    color: var(--green-bright);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.ladder-track {
+  position: relative;
+  padding-top: var(--space-2);
+}
+
+.ladder {
+  display: grid;
+  grid-template-columns: repeat(var(--steps, 6), 1fr);
+  gap: var(--space-1);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ladder-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.ladder-bar {
+  width: 100%;
+  height: var(--ladder-bar);
+  border-radius: 3px;
+  background: var(--surface-raised);
+  transition: background 0.3s var(--ease), transform 0.3s var(--ease);
+}
+
+.ladder-step.is-done .ladder-bar {
+  background: var(--bar-done);
+}
+
+.ladder-step.is-current .ladder-bar {
+  background: var(--green);
+  transform: scaleY(1.15);
+}
+
+.ladder-label {
+  font-size: clamp(9.5px, 1.1vh, 11.5px);
+  font-weight: 600;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+  transition: color 0.25s;
+}
+
+.ladder-step.is-current .ladder-label {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.ladder-step.is-done .ladder-label {
+  color: var(--muted);
+}
+
+/* The "you are here" marker, sliding along the track. */
+.ladder-pointer {
+  position: absolute;
+  top: 0;
+  width: 0;
+  height: 0;
+  margin-left: -6px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 9px solid var(--green);
+  transition: left 0.32s var(--ease);
+  pointer-events: none;
+}
+
+/* ── Play button ────────────────────────────────────────────────────── */
+
+.play-wrap {
+  position: relative;
+  flex: none;
+  margin-bottom: var(--space-4);
+}
+
+.play {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--play-size);
+  height: var(--play-size);
+  border-radius: 50%;
+  color: var(--on-green);
+  background: var(--green);
+  transition: transform 0.18s var(--ease), background 0.2s, filter 0.2s;
+}
+
+.play:hover:not(:disabled) {
+  background: var(--green-bright);
+  transform: translateY(-1px);
+}
+
+.play:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.play:disabled {
+  cursor: default;
+  filter: saturate(0.4) brightness(0.7);
+}
+
+.play-icon {
+  grid-area: 1 / 1;
+  width: calc(var(--play-size) * 0.35);
+  height: calc(var(--play-size) * 0.35);
+  margin-left: calc(var(--play-size) * 0.05);
+  transition: opacity 0.15s;
+}
+
+.play.is-playing .play-icon {
+  opacity: 0.6;
+}
+
+.play-spinner {
+  grid-area: 1 / 1;
+  display: none;
+  width: calc(var(--play-size) * 0.3);
+  height: calc(var(--play-size) * 0.3);
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #ffffff;
+  animation: spin 0.7s linear infinite;
+}
+
+.play.is-loading {
+  cursor: progress;
+  filter: saturate(0.4) brightness(0.75);
+}
+
+.play.is-loading .play-icon {
+  display: none;
+}
+
+.play.is-loading .play-spinner {
+  display: block;
+}
+
+/* The ring is a timer: it sweeps once per excerpt. */
+.play-ring {
+  position: absolute;
+  inset: -7px;
+  width: calc(100% + 14px);
+  height: calc(100% + 14px);
+  transform: rotate(-90deg);
+  pointer-events: none;
+  overflow: visible;
+}
+
+.play-ring circle {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.play-ring .ring-track {
+  stroke: rgba(255, 255, 255, 0.08);
+}
+
+.play-ring .ring-progress {
+  stroke: var(--text);
+  transition: stroke-dashoffset 0.06s linear;
+}
+
+.play-hint {
+  position: absolute;
+  left: 50%;
+  bottom: -20px;
+  transform: translateX(-50%);
+  font-size: var(--text-label);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dim);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+
+.play-wrap:hover .play-hint {
+  opacity: 1;
+}
+
+/*
+ * The line under the play button: "getting ready" while a clip is being
+ * decoded, and — if the file turns out to be unplayable — why nothing came
+ * out. Shared by both game screens.
+ */
+.play-status {
+  position: absolute;
+  left: 50%;
+  bottom: -22px;
+  transform: translateX(-50%);
+  font-size: var(--text-label);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.play-status.is-error {
+  color: var(--red-soft-text);
+}
+
+/* ── Answer row ─────────────────────────────────────────────────────── */
+
+.answer {
+  flex: none;
+  display: flex;
+  gap: var(--space-2);
+  width: 100%;
+  align-items: stretch;
+}
+
+.field {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.field-input {
+  width: 100%;
+  height: var(--control-h);
+  padding: 0 var(--space-3) 0 calc(var(--space-3) + 30px);
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: var(--text-body);
+  transition: border-color 0.18s, background 0.18s;
+}
+
+.field-input::placeholder {
+  color: var(--dim);
+}
+
+.field-input:hover:not(:disabled) {
+  border-color: var(--line-strong);
+}
+
+.field-input:focus {
+  outline: none;
+  border-color: var(--green);
+  background: var(--surface-hover);
+}
+
+.field-input:focus-visible {
+  outline: none;
+}
+
+.field-input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.field-icon {
+  position: absolute;
+  left: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--dim);
+  pointer-events: none;
+  transition: color 0.2s;
+}
+
+.field.is-correct .field-input,
+.field.is-correct .field-input:focus {
+  border-color: rgba(53, 216, 115, 0.7);
+  background: var(--green-soft);
+  color: var(--green-soft-text);
+}
+
+.field.is-correct .field-icon {
+  color: var(--green-bright);
+}
+
+.field.is-wrong {
+  animation: shake 0.36s var(--ease);
+}
+
+.field.is-wrong .field-input,
+.field.is-wrong .field-input:focus {
+  border-color: rgba(239, 107, 127, 0.65);
+  background: var(--red-soft);
+}
+
+.field.is-wrong .field-icon {
+  color: var(--red);
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-6px);
+  }
+  50% {
+    transform: translateX(5px);
+  }
+  75% {
+    transform: translateX(-3px);
+  }
+}
+
+/* ── Autocomplete ───────────────────────────────────────────────────── */
+
+.suggestions {
+  position: absolute;
+  bottom: calc(100% + var(--space-1));
+  left: 0;
+  right: 0;
+  z-index: 30;
+  padding: 6px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-solid);
+  box-shadow: 0 20px 44px -20px rgba(0, 0, 0, 0.9);
+  max-height: min(38vh, 264px);
+  overflow-y: auto;
+}
+
+.suggestions:empty {
+  display: none;
+}
+
+.suggestion {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--control-h-sm);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  text-align: left;
+  transition: background 0.12s;
+}
+
+.suggestion:hover,
+.suggestion.is-active {
+  background: var(--surface-raised);
+}
+
+.suggestion-title {
+  font-size: var(--text-body);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggestion-artist {
+  flex: none;
+  font-size: var(--text-small);
+  color: var(--muted);
+}
+
+/* ── Skip / Give up ─────────────────────────────────────────────────── */
+
+/* Neutral and light, like the reference: skipping is routine, not a warning. */
+.skip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  flex: none;
+  min-width: 96px;
+  min-height: var(--control-h);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  background: var(--button-light);
+  color: var(--button-light-text);
+  font-size: var(--text-small);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  transition: background 0.18s, border-color 0.18s, transform 0.15s var(--ease), color 0.18s;
+}
+
+.skip:hover {
+  background: var(--button-light-hover);
+}
+
+.skip:active {
+  transform: scale(0.98);
+}
+
+.skip-next {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(20, 21, 26, 0.12);
+  font-size: var(--text-label);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+  opacity: 0.75;
+}
+
+/* The last step hands the answer over — that one is a small warning. */
+.skip.is-final {
+  background: transparent;
+  border-color: rgba(239, 107, 127, 0.4);
+  color: var(--red-soft-text);
+}
+
+.skip.is-final:hover {
+  background: var(--red-soft);
+  border-color: rgba(239, 107, 127, 0.65);
+}
+
+/* ── Narrow screens ─────────────────────────────────────────────────── */
+
+/*
+ * Below this width the answer row cannot hold a usable field and a button
+ * side by side, so the field takes its own line and the controls share the
+ * next one — each still a comfortable touch target.
+ */
+@media (max-width: 560px) {
+  .hud {
+    gap: var(--space-4);
+  }
+
+  .answer {
+    flex-wrap: wrap;
+  }
+
+  .field {
+    flex: 1 1 100%;
+  }
+
+  .skip {
+    flex: 1;
+  }
+
+  .play-hint {
+    display: none;
+  }
+
+  /* The status line carries information, so it stays — it just stops
+     being allowed to widen the row. */
+  .play-status {
+    max-width: 90vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

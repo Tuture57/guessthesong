@@ -1,0 +1,390 @@
+/* ── Design tokens ──────────────────────────────────────────────────── */
+/*
+ * Flat, very dark, and quiet: one near-black background, dark grey surfaces,
+ * strong type, and green reserved for the one action that matters (play).
+ * No gradients on chrome, no glows, no violet.
+ *
+ * The metrics below are the whole responsive strategy. Everything that costs
+ * vertical room — spacing, control heights, the play button, the row stack —
+ * is expressed as a `clamp()` that grows with the viewport height, so a
+ * 1366x768 laptop or a 375x667 phone compresses the layout instead of pushing
+ * the answer field off the bottom. Screens do not use one-off breakpoints.
+ */
+
+:root {
+  --bg: #0d0e10;
+  --bg-lift: #131418;
+
+  --surface: #17181d;
+  --surface-hover: #1e2026;
+  --surface-solid: #1b1c21;
+  --surface-raised: #22242a;
+
+  --line: #2a2c33;
+  --line-strong: #3b3e47;
+
+  --text: #f2f2f4;
+  --muted: #9a9da7;
+  --dim: #676a75;
+
+  --green: #1fc45e;
+  --green-bright: #35d873;
+  --green-soft: rgba(31, 196, 94, 0.12);
+
+  --button-light: #e9eaee;
+  --button-light-hover: #f6f7f9;
+  --button-light-text: #14151a;
+
+  --amber: #e3b341;
+  --red: #ef6b7f;
+  --red-soft: rgba(239, 107, 127, 0.1);
+
+  /* Text tints used on top of the soft fills above. */
+  --green-soft-text: #c7f5d8;
+  --red-soft-text: #ffb9c5;
+
+  /* Reveal-ladder state colours. */
+  --bar-done: #4a4e59;
+  --on-green: #ffffff;
+
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 16px;
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  --font: 'Inter', 'Segoe UI Variable Display', 'Segoe UI', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+
+  /* ── Fluid scale ────────────────────────────────────────────────── */
+
+  /* Spacing: the vertical rhythm of every screen. */
+  --space-1: clamp(4px, 0.5vh, 6px);
+  --space-2: clamp(6px, 0.9vh, 10px);
+  --space-3: clamp(10px, 1.4vh, 16px);
+  --space-4: clamp(13px, 2vh, 22px);
+  --space-5: clamp(16px, 2.8vh, 30px);
+
+  /* Controls keep a 44px touch floor and stop growing on tall screens. */
+  --control-h: clamp(46px, 6vh, 56px);
+  --control-h-sm: clamp(40px, 5vh, 44px);
+  --row-h: clamp(38px, 5.6vh, 54px);
+  --play-size: clamp(62px, 9.5vh, 92px);
+  --ladder-bar: clamp(6px, 1vh, 9px);
+  --code-size: clamp(30px, 5vh + 2vw, 58px);
+
+  /* Type: readable everywhere, never a reason for a scrollbar. */
+  --text-display: clamp(30px, 3.4vw + 3.4vh, 76px);
+  --text-title: clamp(21px, 1.6vw + 1.6vh, 34px);
+  --text-body: clamp(13.5px, 0.35vw + 1.05vh, 15.5px);
+  --text-small: clamp(11.5px, 0.3vw + 0.85vh, 13px);
+  --text-label: clamp(10px, 0.9vh, 11px);
+
+  --gutter: clamp(14px, 2vw, 20px);
+  --shell-max: 760px;
+}
+
+/* ── Reset ──────────────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;
+  overscroll-behavior-y: none;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+/* Class-based `display` rules would otherwise beat the UA's [hidden] rule. */
+[hidden] {
+  display: none !important;
+}
+
+:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+::selection {
+  background: var(--green);
+  color: #05130a;
+}
+
+/* ── Shell ──────────────────────────────────────────────────────────── */
+
+#app {
+  position: relative;
+  z-index: 1;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.shell {
+  width: 100%;
+  max-width: var(--shell-max);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+/* The header stays put; only the screen below it ever scrolls. */
+.topbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.brand svg {
+  flex: none;
+  color: var(--green);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The library indicator doubles as the "rescan the folder" button. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  transition: border-color 0.18s, color 0.18s, background 0.18s;
+}
+
+.chip:hover:not(:disabled) {
+  border-color: var(--line-strong);
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.chip:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.chip svg {
+  flex: none;
+  opacity: 0.75;
+}
+
+.chip.is-busy svg {
+  animation: spin 0.9s linear infinite;
+}
+
+.chip.is-updated {
+  border-color: rgba(53, 216, 115, 0.5);
+  color: var(--green-bright);
+}
+
+.chip-text {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Shared type ────────────────────────────────────────────────────── */
+
+.mono {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--control-h);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  font-size: var(--text-body);
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  transition: transform 0.15s var(--ease), background 0.18s, border-color 0.18s, color 0.18s;
+}
+
+.btn:active {
+  transform: scale(0.985);
+}
+
+.btn-primary {
+  background: var(--green);
+  color: #05130a;
+}
+
+.btn-primary:hover {
+  background: var(--green-bright);
+}
+
+.btn:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.btn-ghost {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.btn-ghost:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-hover);
+}
+
+/* ── Screens ────────────────────────────────────────────────────────── */
+
+/*
+ * A screen owns the space under the header. It scrolls only when its content
+ * genuinely cannot fit, and `margin-block: auto` on the inner shell centres it
+ * while there is room — crucially, auto margins collapse instead of clipping,
+ * which a `justify-content: center` does not.
+ */
+.screen {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding-bottom: env(safe-area-inset-bottom);
+  animation: screen-in 0.24s var(--ease) both;
+}
+
+.screen > .shell {
+  margin-block: auto;
+}
+
+/* Screens whose inner stack fills the height instead of being centred. */
+.round > .shell,
+.mp-game > .shell {
+  margin-block: 0;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* ── Form controls ──────────────────────────────────────────────────── */
+
+.text-input,
+.select {
+  width: 100%;
+  min-height: var(--control-h-sm);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--text-body);
+  transition: border-color 0.18s, background 0.18s;
+}
+
+.select {
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% + 1px),
+    calc(100% - 13px) calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 36px;
+}
+
+.text-input::placeholder {
+  color: var(--dim);
+}
+
+.text-input:hover:not(:disabled),
+.select:hover:not(:disabled) {
+  border-color: var(--line-strong);
+}
+
+.text-input:focus,
+.select:focus {
+  outline: none;
+  border-color: var(--green);
+  background: var(--surface-hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

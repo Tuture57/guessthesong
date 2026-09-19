@@ -1,0 +1,41 @@
+{
+  "name": "guessthesong",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Devinez vos chansons à partir d'un extrait de 0,1 seconde.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n server,web -c magenta,green \"node server/index.js\" \"vite\"",
+    "build": "vite build",
+    "start": "node server/index.js --prod",
+    "serve": "npm run build && node server/index.js --prod",
+    "scan": "node server/scan.js",
+    "typecheck": "tsc --noEmit",
+    "qa": "node tools/qa-single.mjs",
+    "qa:single": "node tools/qa-single.mjs",
+    "qa:multi": "node tools/qa-multi.mjs",
+    "qa:mp": "node tools/mp-smoke.mjs",
+    "shots": "node tools/shots.mjs",
+    "qa:modes": "node tools/qa-modes.mjs",
+    "qa:fr": "node tools/qa-fr.mjs",
+    "qa:prod": "node tools/qa-prod.mjs",
+    "qa:production": "node tools/prod-smoke.mjs",
+    "latency": "node tools/audio-latency.mjs",
+    "qa:ui": "node tools/ui-audit.mjs"
+  },
+  "dependencies": {
+    "chokidar": "^4.0.3",
+    "express": "^4.21.2",
+    "music-metadata": "^11.2.1",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "playwright": "^1.63.0",
+    "typescript": "^7.0.2",
+    "vite": "^6.0.7"
+  }
+}

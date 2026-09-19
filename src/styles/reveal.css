@@ -1,0 +1,299 @@
+/* ── Round reveal ───────────────────────────────────────────────────── */
+
+.reveal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: var(--space-3);
+  background: rgba(8, 9, 11, 0.78);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  animation: fade-in 0.22s var(--ease) both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* On a hit, let the green answer field register for a moment before the panel
+   covers it. */
+.reveal.is-success {
+  animation-delay: 0.24s;
+}
+
+.reveal.is-success .reveal-card {
+  animation-delay: 0.3s;
+}
+
+.reveal-card {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  max-height: calc(100dvh - var(--space-3) * 2);
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-4) var(--space-3);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-solid);
+  box-shadow: 0 32px 70px -28px rgba(0, 0, 0, 0.95);
+  text-align: center;
+  animation: card-in 0.34s var(--ease-spring) both;
+}
+
+.reveal.is-results .reveal-card {
+  max-width: 470px;
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+}
+
+.reveal-art {
+  position: relative;
+  width: clamp(84px, 14vh, 118px);
+  height: clamp(84px, 14vh, 118px);
+  margin: 0 auto var(--space-3);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+}
+
+.reveal-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.reveal-art-fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--dim);
+}
+
+.reveal-kicker {
+  position: relative;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--green-bright);
+  margin-bottom: 8px;
+}
+
+.reveal[data-state='miss'] .reveal-kicker {
+  color: var(--muted);
+}
+
+.reveal-title {
+  position: relative;
+  margin: 0;
+  font-size: clamp(20px, 2vw + 1.4vh, 27px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.reveal-artist {
+  position: relative;
+  margin: 4px 0 0;
+  font-size: var(--text-small);
+  color: var(--muted);
+}
+
+.reveal-points {
+  position: relative;
+  margin-top: var(--space-3);
+  font-size: clamp(28px, 2.6vw + 2vh, 40px);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--green-bright);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  animation: points-in 0.4s var(--ease-spring) both 0.12s;
+}
+
+.reveal-points.is-zero {
+  color: var(--dim);
+}
+
+@keyframes points-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.94);
+  }
+}
+
+.reveal-points small {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-left: 4px;
+  color: var(--muted);
+  vertical-align: 6px;
+}
+
+.reveal-meta {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin-top: var(--space-2);
+  font-size: var(--text-small);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.reveal-meta .dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--dim);
+}
+
+.reveal-streak {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--amber);
+  font-weight: 600;
+}
+
+/* ── Reveal playback (the answer, playing from the excerpt position) ── */
+
+.reveal-audio {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: 9px 13px 11px 9px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.025);
+  text-align: left;
+}
+
+.transport-toggle {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--text);
+  transition: background 0.18s, border-color 0.18s, transform 0.15s var(--ease), color 0.18s;
+}
+
+.transport-toggle:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: var(--green-bright);
+}
+
+.transport-toggle:active:not(:disabled) {
+  transform: scale(0.93);
+}
+
+.transport-toggle:disabled {
+  cursor: progress;
+  opacity: 0.55;
+}
+
+/* Nothing to press yet: the song has not started. */
+.reveal-audio[data-state='loading'] .transport-toggle {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.transport-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.transport-label {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.transport-track {
+  position: relative;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.transport-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  border-radius: 2px;
+  background: var(--green);
+  transition: opacity 0.2s;
+}
+
+.reveal-audio[data-state='paused'] .transport-fill,
+.reveal-audio[data-state='ended'] .transport-fill {
+  opacity: 0.4;
+}
+
+/* Nothing is playing while the track loads — keep the bar calm. */
+.reveal-audio[data-state='loading'] .transport-fill {
+  opacity: 0.25;
+}
+
+.reveal-next {
+  position: relative;
+  width: 100%;
+  margin-top: var(--space-3);
+  background: var(--green);
+  color: #05130a;
+}
+
+.reveal-hint {
+  position: relative;
+  margin-top: 12px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* It only ever describes keys, so it is noise on a touch screen. */
+@media (hover: none) {
+  .reveal-hint {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .reveal-card {
+    padding: var(--space-3);
+  }
+}

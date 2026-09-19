@@ -1,0 +1,31 @@
+# Dependencies and build output — both are produced by `npm install` / `npm run build`.
+node_modules/
+dist/
+
+# Derived, disposable: the metadata cache and the covers extracted from it.
+.cache/
+
+# Test artefacts.
+.qa/
+.audit/
+.shots/
+*.log
+
+# Secrets and per-machine settings. The app reads PORT, HOST, MUSIC_DIR,
+# DATA_DIR, WATCH and GTS_* straight from the environment; a local .env file
+# is convenience, never something to publish.
+.env
+.env.*
+!.env.example
+
+# The music itself. These files are yours, they are large, and they have no
+# business in a repository: deploy them to the host separately (SFTP), not
+# through Git. The folder stays in the tree so a fresh clone has somewhere to
+# put them.
+songs/*
+!songs/.gitkeep
+
+# Windows and editor noise.
+Thumbs.db
+desktop.ini
+.DS_Store
