@@ -178,6 +178,27 @@ async function main() {
         (/(localhost:\d+|127\.0\.0\.1:\d+)/.exec(source) ?? ['(none)'])[0],
       );
       check('the bundle derives the socket URL from the page', /wss?:\/\/\$\{|location\.host/.test(source) || /"wss"/.test(source));
+
+      /*
+       * Vite emits `name-HASH.ext`. That hash is what makes the file safe to
+       * cache forever, and it is easy to match the wrong separator — this
+       * exact check exists because the first version looked for a dot and
+       * quietly downgraded every asset to `no-cache`.
+       */
+      const assetHeaders = await (await fetch(`${BASE}${asset}`)).headers;
+      check(
+        'a fingerprinted asset is cacheable forever',
+        /immutable/.test(assetHeaders.get('cache-control') ?? ''),
+        assetHeaders.get('cache-control') ?? '(none)',
+      );
+      const pageHeaders = await (await fetch(BASE)).headers;
+      check(
+        'the entry document is never cached',
+        /no-cache|no-store/.test(pageHeaders.get('cache-control') ?? ''),
+        pageHeaders.get('cache-control') ?? '(none)',
+      );
+      const hashed = /-[0-9A-Za-z_-]{8,}\.[a-z0-9]+$/i.test(asset.split('/').pop() ?? '');
+      check('the asset name really is fingerprinted', hashed, asset);
     }
 
     /* ── Nothing private in the public endpoints ──────────────────── */

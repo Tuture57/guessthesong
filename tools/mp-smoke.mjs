@@ -246,9 +246,20 @@ async function main() {
   check('everyone ready starts the next round immediately', nextRoundA.round.number === 2, String(nextRoundA.round.number));
 
   /* ── Disconnects ────────────────────────────────────────────────── */
+  /*
+   * How fast a dropped socket becomes visible is the transport's business, not
+   * the server's: on localhost it is instant, and behind a hosting proxy it is
+   * the proxy that notices first — measured at ~10 s through Render's edge.
+   * The wait is therefore generous by default, and can be raised further for a
+   * slow deployment with GTS_DISCONNECT_TIMEOUT_MS.
+   */
+  const disconnectTimeout = Number(process.env.GTS_DISCONNECT_TIMEOUT_MS ?? 30_000);
   late.close();
   await sleep(300);
-  const roomAfterLeave = await a.next((m) => m.t === 'room' && m.room.players.some((p) => !p.connected));
+  const roomAfterLeave = await a.next(
+    (m) => m.t === 'room' && m.room.players.some((p) => !p.connected),
+    disconnectTimeout,
+  );
   const away = roomAfterLeave.room.players.find((p) => !p.connected);
   check('a disconnect is visible as away', Boolean(away), away?.name);
 

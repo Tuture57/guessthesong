@@ -301,7 +301,13 @@ if (PROD) {
     express.static(dist, {
       index: false,
       setHeaders: (res, filePath) => {
-        const immutable = /\.[0-9a-f]{8,}\./.test(path.basename(filePath));
+        /*
+         * Vite fingerprints as `name-HASH.ext` — a hyphen before the hash, not
+         * a dot. Matching on a dot silently failed and every asset went out as
+         * `no-cache`, so each visit re-downloaded the bundle. The name is the
+         * hash's only job: if it changes, it is a different file.
+         */
+        const immutable = /-[0-9A-Za-z_-]{8,}\.[a-z0-9]+$/i.test(path.basename(filePath));
         res.setHeader('Cache-Control', immutable ? 'public, max-age=31536000, immutable' : 'no-cache');
       },
     }),

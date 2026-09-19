@@ -64,6 +64,26 @@ const AUDIO_PROBE = () => {
 /** `GTS_INSECURE_TLS=1` accepts a self-signed certificate (staging hosts). */
 const INSECURE = process.env.GTS_INSECURE_TLS === '1';
 
+/**
+ * Wait for the page to schedule `min` audio sources.
+ *
+ * The app fetches a song's bytes and decodes them the first time it needs
+ * them, and starts a decode-ahead at the beginning of each round. Locally that
+ * is tens of milliseconds; from a deployed host it is a real download on a
+ * cold connection (measured on Render: 82 ms to first byte, 296 ms to the
+ * whole 1.6 MB body, 642 ms to decode ≈ 1.4 s total). A fixed sleep here was
+ * simply wrong for anything that is not localhost — poll instead.
+ */
+async function waitForSources(page, min, timeoutMs = 25000) {
+  const started = Date.now();
+  for (;;) {
+    const count = await page.evaluate(() => window.__played);
+    const elapsed = Date.now() - started;
+    if (count >= min || elapsed >= timeoutMs) return { ok: count >= min, count, seconds: elapsed / 1000 };
+    await sleep(250);
+  }
+}
+
 async function open(browser, name) {
   const context = await browser.newContext({ ignoreHTTPSErrors: INSECURE });
   const page = await context.newPage();
@@ -119,9 +139,8 @@ async function main() {
       await host.page.waitForSelector('.round', { timeout: 20000 });
       await sleep(400);
       await host.page.click('.play');
-      await sleep(1200);
-      const played = await host.page.evaluate(() => window.__played);
-      check('the first excerpt plays', played > 0, `${played} source(s)`);
+      const firstPlay = await waitForSources(host.page, 1);
+      check('the first excerpt plays', firstPlay.ok, `${firstPlay.count} source(s) after ${firstPlay.seconds.toFixed(1)}s`);
 
       const first = (await host.page.textContent('.duration-value')).trim();
       await host.page.click('.skip');
@@ -130,8 +149,8 @@ async function main() {
       check('asking for more audio lengthens the excerpt', first === '0,1' && second !== first, `${first} -> ${second}`);
       check('the listen-more button is labelled clearly', /écouter plus/i.test(await host.page.textContent('.skip')));
       await host.page.click('.play');
-      await sleep(900);
-      check('the longer excerpt plays too', (await host.page.evaluate(() => window.__played)) > 1);
+      const secondPlay = await waitForSources(host.page, 2);
+      check('the longer excerpt plays too', secondPlay.ok, `${secondPlay.count} source(s) after ${secondPlay.seconds.toFixed(1)}s`);
       await host.page.goBack().catch(() => {});
       await host.page.goto(BASE, { waitUntil: 'domcontentloaded' });
       await host.page.waitForSelector('.home-title');
@@ -184,8 +203,8 @@ async function main() {
     check('the standings are not shown before a round resolves', (await host.page.locator('.mp-board-row:visible').count()) === 0);
 
     await host.page.click('.play');
-    await sleep(1000);
-    check('the room’s clip plays', (await host.page.evaluate(() => window.__played)) > 0);
+    const roomPlay = await waitForSources(host.page, 1);
+    check('the room’s clip plays', roomPlay.ok, `${roomPlay.count} source(s) after ${roomPlay.seconds.toFixed(1)}s`);
 
     /* Both give up so the round resolves at once, whatever the room’s timer. */
     await guest.page.click('.mp-giveup');
@@ -213,11 +232,20 @@ async function main() {
     await sleep(1500);
     check('the room survives a player closing the tab', (await host.page.locator('.mp-status-item').count()) === 2);
     check('the game is still on screen for the player who stayed', (await host.page.locator('.mp-game').count()) === 1);
-    check(
-      'the player who left is shown as gone',
-      (await host.page.locator('.mp-status-item.is-away, .mp-status-item.is-disconnected').count()) > 0 ||
-        (await host.page.locator('.mp-status-item').allTextContents()).some((text) => /déconnecté/i.test(text)),
-    );
+
+    /*
+     * A dropped socket is noticed by the platform's proxy, not instantly: an
+     * abruptly closed tab took ~10 s to surface through Render's edge, against
+     * well under a second on localhost. Poll rather than pick a sleep.
+     */
+    const closedAt = Date.now();
+    let gone = false;
+    for (let i = 0; i < 70 && !gone; i += 1) {
+      await sleep(500);
+      const status = await host.page.locator('.mp-status').innerText().catch(() => '');
+      gone = /déconnecté/i.test(status);
+    }
+    check('the player who left is shown as gone', gone, `${((Date.now() - closedAt) / 1000).toFixed(1)}s to notice`);
 
     const rejoined = await browser.newContext({ ignoreHTTPSErrors: INSECURE });
     const backPage = await rejoined.newPage();

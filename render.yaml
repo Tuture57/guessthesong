@@ -10,6 +10,9 @@
 services:
   - type: web
     name: guessthesong
+    # Stated explicitly so the file validates standalone; a Blueprint applied
+    # from the Dashboard reads it from the repository it was found in anyway.
+    repo: https://github.com/Tuture57/guessthesong
     runtime: node
     # Free instance: spins down after 15 minutes without traffic and takes
     # about a minute to come back. WebSocket messages count as traffic, so an
@@ -22,10 +25,18 @@ services:
     branch: main
     autoDeployTrigger: commit
 
-    # `npm ci` installs exactly what package-lock.json pins (devDependencies
-    # included — Vite and TypeScript are needed to build). `npm run build`
-    # produces dist/, which the server serves in production.
-    buildCommand: npm ci && npm run build
+    # `npm ci` installs exactly what package-lock.json pins; `--include=dev` is
+    # not optional. NODE_ENV=production is set on this service and applies to
+    # the build as well as to the run, and npm reads that as "omit
+    # devDependencies" — which leaves `vite build` with no vite:
+    #
+    #   > guessthesong@1.0.0 build
+    #   > vite build
+    #   sh: 1: vite: not found
+    #
+    # The flag overrides that. `npm run build` then produces dist/, which the
+    # server serves in production.
+    buildCommand: npm ci --include=dev && npm run build
 
     # The server reads PORT from the environment and binds to 0.0.0.0.
     startCommand: npm start
