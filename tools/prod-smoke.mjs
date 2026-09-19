@@ -65,6 +65,17 @@ const AUDIO_PROBE = () => {
 const INSECURE = process.env.GTS_INSECURE_TLS === '1';
 
 /**
+ * `GTS_HOST_RESOLVER_RULES="MAP host 1.2.3.4"` pins a hostname inside Chromium.
+ *
+ * This is for the window right after a DNS change, when public resolvers
+ * already return the new address but a local router or ISP resolver is still
+ * serving the old one. It overrides resolution only — the hostname, the SNI
+ * and the certificate are all still checked for real, so a pass here still
+ * means the domain itself works.
+ */
+const RESOLVER_RULES = process.env.GTS_HOST_RESOLVER_RULES ?? '';
+
+/**
  * Wait for the page to schedule `min` audio sources.
  *
  * The app fetches a song's bytes and decodes them the first time it needs
@@ -111,7 +122,13 @@ async function enterRoom(player, code) {
 
 async function main() {
   console.log(`\nProduction smoke test against ${BASE}\n`);
-  const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', '--mute-audio'] });
+  const browser = await chromium.launch({
+    args: [
+      '--autoplay-policy=no-user-gesture-required',
+      '--mute-audio',
+      ...(RESOLVER_RULES ? [`--host-resolver-rules=${RESOLVER_RULES}`] : []),
+    ],
+  });
 
   try {
     /* ── The page as the internet sees it ─────────────────────────── */
@@ -121,16 +138,33 @@ async function main() {
     check('the document is French', (await host.page.getAttribute('html', 'lang')) === 'fr');
     check('the wordmark rendered', /devine la chanson/i.test(await host.page.textContent('.home-title')));
 
-    const healthResponse = await host.page.request.get(`${BASE}/api/health`);
-    check('the health endpoint answers', healthResponse.ok(), String(healthResponse.status()));
-    const health = await healthResponse.json().catch(() => null);
-    check('the server reports itself healthy', health?.ok === true, JSON.stringify(health));
-    check('a version is published', typeof health?.version === 'string', health?.version);
-    check('no filesystem path is published', !/[A-Za-z]:[\\/]|\/(home|srv|var|Users)\//.test(JSON.stringify(health)), JSON.stringify(health));
+    /*
+     * Fetched from the page, not from Node: the browser's own network stack is
+     * what a real visitor uses, and it proves the API answers on the very same
+     * origin as the interface. (Playwright's `page.request` runs outside the
+     * browser and would miss a browser-side DNS override.)
+     */
+    const health = await host.page.evaluate(async () => {
+      try {
+        const response = await fetch('/api/health');
+        return { status: response.status, body: await response.json() };
+      } catch (error) {
+        return { status: 0, body: null, error: String(error) };
+      }
+    });
+    const healthBody = health.body;
+    check('the health endpoint answers', health.status === 200, `${health.status}${health.error ? ` ${health.error}` : ''}`);
+    check('the server reports itself healthy', healthBody?.ok === true, JSON.stringify(healthBody));
+    check('a version is published', typeof healthBody?.version === 'string', healthBody?.version);
+    check(
+      'no filesystem path is published',
+      !/[A-Za-z]:[\\/]|\/(home|srv|var|Users)\//.test(JSON.stringify(healthBody)),
+      JSON.stringify(healthBody),
+    );
 
-    const tracks = health?.library?.tracks ?? 0;
+    const tracks = healthBody?.library?.tracks ?? 0;
     check('the music library was indexed on the host', tracks > 0, `${tracks} tracks`);
-    check('the library folder was found', health?.library?.ready === true);
+    check('the library folder was found', healthBody?.library?.ready === true);
 
     /* ── Singleplayer: the audio really plays ─────────────────────── */
     console.log('\nSingleplayer\n');

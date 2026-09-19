@@ -25,6 +25,16 @@ services:
     branch: main
     autoDeployTrigger: commit
 
+    # Declared for the record. The live association was made on the service
+    # itself, and a Blueprint only declares it — the DNS record is always set
+    # at the provider. At IONOS this is one CNAME:
+    #   guessthesong  ->  guessthesong-7c6q.onrender.com
+    # Nothing else may sit on that name (no A, AAAA, MX or TXT): a CNAME cannot
+    # coexist with other records, and a leftover AAAA sends IPv6 clients to the
+    # wrong host.
+    domains:
+      - guessthesong.arthurbartolomei.com
+
     # `npm ci` installs exactly what package-lock.json pins; `--include=dev` is
     # not optional. NODE_ENV=production is set on this service and applies to
     # the build as well as to the run, and npm reads that as "omit
