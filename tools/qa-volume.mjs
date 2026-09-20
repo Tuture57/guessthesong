@@ -344,16 +344,66 @@ async function main() {
       `sources ${sources} → ${await page.evaluate(() => window.__sources)}`,
     );
 
+    /* ── The reveal's full song, and its replay, obey it too ──────── */
+    // Give up on the round: the reveal opens and starts the whole song.
+    for (let i = 0; i < 6; i += 1) {
+      if (await page.locator('.skip').isVisible()) await page.click('.skip');
+      await sleep(120);
+    }
+    await page.waitForSelector('.reveal-audio[data-state="playing"]', { timeout: 15000 });
+    const songSources = await page.evaluate(() => window.__sources);
+    check('the reveal starts the full song', songSources > sources, `sources ${sources} → ${songSources}`);
+
+    // The reveal covers the top bar, so the reachable control is its own.
+    check(
+      'the reveal carries a speaker of its own',
+      (await page.locator('.reveal-audio .volume').count()) === 1,
+      `${await page.locator('.reveal-audio .volume').count()} found`,
+    );
+    await page.hover('.reveal-audio .volume');
+    await page.fill('.reveal-audio .volume-slider', '20');
+    await page.dispatchEvent('.reveal-audio .volume-slider', 'input');
+    await sleep(150);
+    const duringSong = await master(page);
+    check(
+      'the volume governs the reveal song as well',
+      duringSong.kind === 'linearRampToValueAtTime' && near(duringSong.target, 0.2),
+      JSON.stringify(duringSong),
+    );
+    check(
+      'both controls show the same setting',
+      (await page.inputValue('.reveal-audio .volume-slider')) === (await page.inputValue('.topbar .volume-slider')),
+      `${await page.inputValue('.reveal-audio .volume-slider')} vs ${await page.inputValue('.topbar .volume-slider')}`,
+    );
+
+    // The transport's replay button restarts the song from the same place.
+    await page.click('.transport-toggle');
+    await sleep(200);
+    await page.click('.transport-toggle');
+    await sleep(300);
+    const replayed = await page.evaluate(() => window.__sources);
+    check('the replay plays through the same output', replayed > songSources, `sources ${songSources} → ${replayed}`);
+    const afterReplay = await master(page);
+    check(
+      'the replay is not silently louder than the setting',
+      near(afterReplay.value, 0.2) || near(afterReplay.target, 0.2),
+      JSON.stringify(afterReplay),
+    );
+
+    await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' }).catch(() => {});
+
     /* ── The multiplayer screen keeps the control ─────────────────── */
     await page.goto(BASE, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.home-title');
     await page.click('.mode-card[data-mode="multi"]');
     await page.waitForSelector('.mp-menu');
-    check('the control is on the multiplayer screen', (await ui(page)).slider === 90, String((await ui(page)).slider));
+    // 20 % is what the reveal was turned down to; the point is that the same
+    // number is still in force after two screen changes.
+    check('the control is on the multiplayer screen', (await ui(page)).slider === 20, String((await ui(page)).slider));
     await page.click('.mp-back');
     await page.waitForSelector('.home-title');
-    check('the level survives multiplayer → home', (await ui(page)).slider === 90, String((await ui(page)).slider));
-    check('and it is still the stored one', (await stored(page)).level === '0.9', JSON.stringify(await stored(page)));
+    check('the level survives multiplayer → home', (await ui(page)).slider === 20, String((await ui(page)).slider));
+    check('and it is still the stored one', (await stored(page)).level === '0.2', JSON.stringify(await stored(page)));
 
     /* ── The fallback <audio> element mirrors the same setting ────── */
     const fallbackContext = await browser.newContext({ viewport: { width: 1366, height: 768 } });

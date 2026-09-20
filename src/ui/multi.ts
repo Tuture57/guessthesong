@@ -14,6 +14,7 @@ import type { AttemptEvent, MpAttemptMode, MpPlayer, MpResolved, MpStanding, MpS
 import { countOf, fill, n, points, seconds, t } from '../i18n';
 import { h, icon } from './dom';
 import { LiveLeaderboard } from './leaderboard';
+import { VolumeControl } from './volume';
 
 const HAS_POINTER = window.matchMedia?.('(hover: hover)').matches ?? false;
 const SONG_DELAY = 240;
@@ -555,6 +556,8 @@ export class MultiplayerGame {
   private suggestionList!: HTMLElement;
   private overlay: HTMLElement | null = null;
   private transport: { root: HTMLElement; toggle: HTMLButtonElement; fill: HTMLElement } | null = null;
+  /** The reveal's own speaker — the top bar is under the overlay. */
+  private revealVolume: VolumeControl | null = null;
   private songTimer: number | null = null;
   private transportFrame: number | null = null;
   private ticker: number | null = null;
@@ -1168,6 +1171,12 @@ export class MultiplayerGame {
       icon('pause', 15, 1.9, 'transport-icon'),
     );
     const fillEl = h('span', { class: 'transport-fill' });
+    /*
+     * The reveal covers the top bar, and it is where the whole song plays — so
+     * it carries its own speaker for the same setting rather than making the
+     * player dismiss the panel to turn the music down.
+     */
+    this.revealVolume = new VolumeControl();
     const root = h(
       'div',
       { class: 'reveal-audio', dataset: { state: 'loading' } },
@@ -1178,6 +1187,7 @@ export class MultiplayerGame {
         h('span', { class: 'transport-label', text: fill(t.reveal.playingFrom, { time: clock(startSec) }) }),
         h('div', { class: 'transport-track' }, fillEl),
       ),
+      this.revealVolume.root,
     );
     const total = track?.duration ?? 0;
     if (total > 0) fillEl.style.width = `${Math.min((startSec / total) * 100, 100).toFixed(2)}%`;
@@ -1262,6 +1272,10 @@ export class MultiplayerGame {
     }
     this.stopTransportTicker();
     audio.stop();
+    // A fresh panel builds a fresh control, so this one's document listeners
+    // and subscription go with it.
+    this.revealVolume?.dispose();
+    this.revealVolume = null;
     this.overlay?.remove();
     this.overlay = null;
     this.transport = null;

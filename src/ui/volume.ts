@@ -1,13 +1,17 @@
 /**
- * The volume control in the top bar.
+ * The volume control: a speaker button that mutes, and a small panel holding
+ * the slider and a readout.
  *
- * A speaker button that mutes, and a small panel holding the slider and a
- * readout. The panel follows the pointer on a desktop and stays open on a tap
- * — the same element has to work with a mouse, a keyboard and a thumb, and a
+ * It lives in the top bar, so it is on every screen at once. The reveal panel
+ * is a full-screen overlay that covers that bar, and it is exactly where the
+ * whole song plays — so the reveal carries a second instance of this control
+ * in its own audio strip. Several views, one setting: the state lives in
+ * `core/volume`, which the audio engine also reads, and this file decides
+ * nothing.
+ *
+ * The panel follows the pointer on a desktop and stays open on a tap — the
+ * same element has to work with a mouse, a keyboard and a thumb, and a
  * hover-only control is unreachable on a phone.
- *
- * It renders nothing and decides nothing: the state lives in `core/volume`,
- * which the audio engine also reads. This file is a view of it.
  */
 import { volume } from '../core/volume';
 import { fill, t } from '../i18n';

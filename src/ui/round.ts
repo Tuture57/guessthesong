@@ -19,6 +19,7 @@ import type { Library } from '../core/library';
 import type { Suggestion } from '../core/matching';
 import { fill, points, seconds, t } from '../i18n';
 import { flameIcon, formatClock, h, icon } from './dom';
+import { VolumeControl } from './volume';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const RING_RADIUS = 46;
@@ -82,6 +83,8 @@ export class RoundView {
   private chooseExplicitly = false;
   private overlay: HTMLElement | null = null;
   private transport: Transport | null = null;
+  /** The reveal's own speaker — the top bar is under the overlay. */
+  private revealVolume: VolumeControl | null = null;
   private ringFrame: number | null = null;
   private ringResetTimer: number | null = null;
   private songTimer: number | null = null;
@@ -732,6 +735,12 @@ export class RoundView {
     );
 
     const fillEl = h('span', { class: 'transport-fill' });
+    /*
+     * The reveal covers the top bar, and it is the one screen that plays a
+     * whole song — so it carries its own speaker for the same setting rather
+     * than making the player dismiss the panel to turn the music down.
+     */
+    this.revealVolume = new VolumeControl();
     const root = h(
       'div',
       { class: 'reveal-audio', dataset: { state: 'loading' } },
@@ -742,6 +751,7 @@ export class RoundView {
         h('span', { class: 'transport-label', text: fill(t.reveal.playingFrom, { time: formatClock(round.startSec) }) }),
         h('div', { class: 'transport-track' }, fillEl),
       ),
+      this.revealVolume.root,
     );
 
     // Paint the opening position straight away so the bar never jumps.
@@ -851,6 +861,10 @@ export class RoundView {
     this.stopTransportTicker();
     // Leaving the reveal always silences the song, however we got here.
     audio.stop();
+    // A fresh panel builds a fresh control, so this one's document listeners
+    // and subscription go with it.
+    this.revealVolume?.dispose();
+    this.revealVolume = null;
     this.overlay?.remove();
     this.overlay = null;
     this.transport = null;

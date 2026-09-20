@@ -297,3 +297,20 @@
     padding: var(--space-3);
   }
 }
+
+/* The reveal's own speaker. The top bar (and its copy of this control) is
+   underneath the overlay, so this is the one that can actually be reached
+   while the song is playing. */
+.reveal-audio .volume {
+  flex: none;
+}
+
+.reveal-audio .volume-toggle {
+  width: 28px;
+  height: 28px;
+}
+
+.reveal-audio .volume-panel {
+  top: auto;
+  bottom: calc(100% + 8px);
+}
