@@ -69,6 +69,11 @@ const ICONS = {
   clock: '<circle cx="12" cy="12" r="8.2"/><path d="M12 7.6V12l3.2 2"/>',
   chevron: '<path d="m6 9.5 6 6 6-6"/>',
   podium: '<path d="M4 20V10h4v10"/><path d="M10 20V4h4v16"/><path d="M16 20v-6h4v6"/>',
+  // The speaker is the same shape in all three: only the waves change, so the
+  // muted state reads as the same control rather than a different one.
+  volume: '<path d="M11 5 6.5 9H3.5v6h3L11 19z"/><path d="M15 9.2a4 4 0 0 1 0 5.6"/><path d="M17.6 6.6a7.6 7.6 0 0 1 0 10.8"/>',
+  volumeLow: '<path d="M11 5 6.5 9H3.5v6h3L11 19z"/><path d="M15 9.2a4 4 0 0 1 0 5.6"/>',
+  volumeMute: '<path d="M11 5 6.5 9H3.5v6h3L11 19z"/><path d="m15.5 10 5 5"/><path d="m20.5 10-5 5"/>',
 } as const;
 
 export type IconName = keyof typeof ICONS;

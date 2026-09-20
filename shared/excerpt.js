@@ -31,14 +31,25 @@ function longestExcerpt() {
   return durations[durations.length - 1] ?? 10;
 }
 
-/** The range of seconds the excerpt may start in, for a track of this length. */
+/**
+ * The range of seconds the excerpt may start in, for a track of this length.
+ *
+ * `maxStart` is the hard ceiling and it is a *correctness* bound, not a taste
+ * one: the longest reveal in the ladder must fit inside the file with the tail
+ * padding to spare. Every other term is clamped to it, so no combination of
+ * ratios can produce a start the 15-second excerpt cannot reach. Both ends are
+ * clamped to it, which is what keeps `earliest <= latest` true on a track too
+ * short to have a window at all — a 20-second track collapses to a single
+ * legal position instead of an inverted range.
+ */
 function excerptWindow(duration) {
   const { minStartSeconds, introSkipRatio, latestStartRatio, tailPaddingSeconds } = config.excerpt;
   const longest = longestExcerpt();
 
-  const earliest = Math.max(minStartSeconds, duration * introSkipRatio);
-  const latest = Math.min(duration * latestStartRatio, duration - longest - tailPaddingSeconds);
-  return { earliest, latest };
+  const maxStart = Math.max(0, duration - longest - tailPaddingSeconds);
+  const earliest = Math.min(Math.max(minStartSeconds, duration * introSkipRatio), maxStart);
+  const latest = Math.min(Math.max(duration * latestStartRatio, earliest), maxStart);
+  return { earliest, latest, maxStart };
 }
 
 function round(value) {
@@ -60,11 +71,6 @@ export function pickExcerptStart(track, seed) {
   if (strategy === 'fixed') return Math.min(fixedStartSeconds, Math.max(0, duration - 1));
 
   const { earliest, latest } = excerptWindow(duration);
-
-  if (latest <= earliest) {
-    const longest = Math.min(longestExcerpt(), duration);
-    return round(Math.max(0, (duration - longest) / 2));
-  }
 
   const random =
     strategy === 'stable'

@@ -83,6 +83,26 @@ await page.close();
 /* ── Multiplayer ──────────────────────────────────────────────────── */
 
 const host = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+// The host's received frames, so the round's audio token can be read back
+// below — the room's audio is addressed by round, not by "now playing".
+await host.addInitScript(() => {
+  window.__mpFrames = [];
+  const proto = window.WebSocket && window.WebSocket.prototype;
+  if (!proto) return;
+  const original = proto.addEventListener;
+  proto.addEventListener = function (type, listener, options) {
+    if (type !== 'message') return original.call(this, type, listener, options);
+    const wrapped = function (event) {
+      try {
+        window.__mpFrames.push(JSON.parse(String(event.data)));
+      } catch {
+        /* not JSON */
+      }
+      return listener.call(this, event);
+    };
+    return original.call(this, type, wrapped, options);
+  };
+});
 await host.goto(BASE, { waitUntil: 'domcontentloaded' });
 await host.waitForSelector('.home-title');
 await sleep(400);
@@ -125,9 +145,16 @@ await guest.click('.mp-reveal');
 await sleep(300);
 await shot(guest, '16-mp-round-guest-revealed');
 
-// Identify the round's track from outside the clients, then answer it.
+// Identify the round's track from outside the clients, then answer it. The
+// round's audio is named by the token the host was sent for that round.
 async function identify(code) {
-  const audio = await (await fetch(`${BASE}/api/multi/audio/${code}`)).arrayBuffer();
+  const token = await host.evaluate(() => {
+    const frames = window.__mpFrames ?? [];
+    const rounds = frames.filter((frame) => frame.t === 'round');
+    return rounds.length ? rounds[rounds.length - 1].round.token : null;
+  });
+  if (!token) return null;
+  const audio = await (await fetch(`${BASE}/api/multi/audio/${code}/${token}`)).arrayBuffer();
   for (const track of library.tracks) {
     const head = await fetch(`${BASE}/api/audio/${track.id}`, { method: 'HEAD' });
     if (Number(head.headers.get('content-length')) === audio.byteLength) return track;

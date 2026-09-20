@@ -10,7 +10,7 @@ import type { PlaybackKind } from '../core/audio';
 import { multiplayer } from '../core/multiplayer';
 import type { Library } from '../core/library';
 import { gameConfig } from '../core/types';
-import type { AttemptEvent, MpAttemptMode, MpPlayer, MpRoundResult, MpStanding, MpStatus } from '../core/types';
+import type { AttemptEvent, MpAttemptMode, MpPlayer, MpResolved, MpStanding, MpStatus } from '../core/types';
 import { countOf, fill, n, points, seconds, t } from '../i18n';
 import { h, icon } from './dom';
 import { LiveLeaderboard } from './leaderboard';
@@ -717,8 +717,9 @@ export class MultiplayerGame {
    * a cold PLAY spent ~1.9–2.9 s decoding the file.
    */
   private async prepareRound(): Promise<void> {
-    const url = multiplayer.audioUrl();
-    const key = multiplayer.audioKey();
+    const token = multiplayer.round?.token ?? '';
+    const url = multiplayer.audioUrl(token);
+    const key = multiplayer.audioKey(token);
     if (!url || !key || key === this.preparedKey) return;
 
     this.preparedKey = key;
@@ -740,12 +741,15 @@ export class MultiplayerGame {
    */
   private warmNextRound(): void {
     const room = multiplayer.room;
-    if (!room || room.phase !== 'resolved' || !room.nextAt) return;
+    if (!room || room.phase !== 'resolved' || !room.nextToken) return;
 
-    const key = `mp:${room.code}:r${room.roundNumber + 1}`;
-    if (key === this.warmedKey) return;
+    // The token is the round's own: warming it can only ever fetch the song
+    // the next round will actually play, and never a repeat of this one.
+    const key = multiplayer.audioKey(room.nextToken);
+    const url = multiplayer.audioUrl(room.nextToken);
+    if (!key || !url || key === this.warmedKey) return;
     this.warmedKey = key;
-    void audio.prepare(key, `/api/multi/upcoming/${encodeURIComponent(room.code)}`);
+    void audio.prepare(key, url);
   }
 
   /**
@@ -766,8 +770,8 @@ export class MultiplayerGame {
 
   private async playExcerpt(): Promise<void> {
     const round = multiplayer.round;
-    const url = multiplayer.audioUrl();
-    const key = multiplayer.audioKey();
+    const url = multiplayer.audioUrl(round?.token ?? '');
+    const key = multiplayer.audioKey(round?.token ?? '');
     if (!round || !url || !key) return;
 
     const step = multiplayer.self?.step ?? 0;
@@ -1042,10 +1046,7 @@ export class MultiplayerGame {
 
   /* ── Overlay: resolved round ──────────────────────────────────────── */
 
-  private showResolved(resolved: {
-    round: { number: number; excerptStart: number; track: { id: string; title: string; artist: string; hasCover: boolean; duration: number } | null };
-    results: MpRoundResult[];
-  }): void {
+  private showResolved(resolved: MpResolved): void {
     const key = `${resolved.round.number}:${resolved.round.track?.id ?? 'x'}`;
     if (key === this.lastResolvedKey) return;
     this.lastResolvedKey = key;
@@ -1129,9 +1130,10 @@ export class MultiplayerGame {
     this.overlay = overlay;
     document.body.append(overlay);
 
+    const token = resolved.round.token;
     this.songTimer = window.setTimeout(() => {
       this.songTimer = null;
-      void this.startSong(resolved.round.excerptStart);
+      void this.startSong(resolved.round.excerptStart, token);
     }, SONG_DELAY);
   }
 
@@ -1183,13 +1185,13 @@ export class MultiplayerGame {
   }
 
   /**
-   * The reveal plays from the room's own audio URL, which still serves the
-   * song that was just played — so it reuses the decoded buffer instead of
-   * decoding the same file a second time.
+   * The reveal plays from the resolved round's own token — the very resource
+   * the round was played from — so it reuses the decoded buffer instead of
+   * decoding the same file twice, and cannot pick up another round's audio.
    */
-  private async startSong(startSec: number): Promise<void> {
-    const url = multiplayer.audioUrl();
-    const key = multiplayer.audioKey();
+  private async startSong(startSec: number, token: string): Promise<void> {
+    const url = multiplayer.audioUrl(token);
+    const key = multiplayer.audioKey(token);
     const started = url && key ? await audio.playSongRemote(key, url, startSec) : false;
     if (this.transport) this.setTransportState(started ? 'playing' : 'ended');
   }
@@ -1209,7 +1211,7 @@ export class MultiplayerGame {
     }
     const resolved = multiplayer.resolved;
     if (state === 'ended' && resolved) {
-      await this.startSong(resolved.round.excerptStart);
+      await this.startSong(resolved.round.excerptStart, resolved.round.token);
     }
   }
 

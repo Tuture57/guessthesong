@@ -8,8 +8,16 @@
  *
  * Spoiler safety is structural: the round's track id, title, artist and cover
  * are never sent to anyone until the round resolves. In-round audio streams
- * through an opaque per-room URL, so even the audio request leaks nothing.
+ * through an opaque per-round token, so even the audio request leaks nothing.
+ *
+ * A round's audio is addressed by a token that is minted once, with the track,
+ * and never reused. That matters more than it looks: clients cache decoded
+ * audio by URL, and a URL that means "whatever this room is playing now" hands
+ * a player the wrong song the moment rounds are reused — a rematch in the same
+ * room, a reconnect, a slow request. A token makes the URL *immutable*, so a
+ * cached buffer can only ever be the buffer that was asked for.
  */
+import { randomBytes } from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import config from '../config.js';
 import { pickExcerptStart, excerptEnd } from '../shared/excerpt.js';
@@ -54,6 +62,8 @@ const INTERMISSION_SECONDS = positiveOr(Number(process.env.GTS_MP_INTERMISSION_S
 const IDLE_SECONDS = positiveOr(Number(process.env.GTS_MP_IDLE_SECONDS), MP.idleRoomTimeoutSeconds);
 /** Pins every room's round time — used by the automated tests and for tuning. */
 const FORCED_ROUND_SECONDS = positiveOr(Number(process.env.GTS_MP_ROUND_SECONDS), null);
+/** `GTS_MP_DEBUG=1` traces which track, token and excerpt each round was given. */
+const DEBUG = /^(1|true|yes)$/i.test(String(process.env.GTS_MP_DEBUG ?? ''));
 
 function positiveOr(value, fallback) {
   return Number.isFinite(value) && value > 0 ? value : fallback;
@@ -115,6 +125,20 @@ function id() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 }
 
+/**
+ * The name of one round's audio resource. Random, opaque, and never reused —
+ * two rounds of the same room, or two games in the same room, can never share
+ * one, which is what makes a client's cache entry unambiguous.
+ */
+function audioToken() {
+  return randomBytes(8).toString('hex');
+}
+
+/** Diagnostic trace for one room's rounds; off unless GTS_MP_DEBUG is set. */
+function trace(room, message) {
+  if (DEBUG) console.log(`[ROOM ${room.code}] ${message}`);
+}
+
 function topFolder(track) {
   return track.folder ? track.folder.split(/[\\/]/)[0] : '';
 }
@@ -145,7 +169,12 @@ function createRoom(settings) {
     },
     players: new Map(),
     roundNumber: 0,
+    /** The round being played: { number, token, trackId, excerptStart, … }. */
     round: null,
+    /** The round after it, chosen once so audio can be fetched ahead of time. */
+    pending: null,
+    /** The round that just resolved — its audio stays addressable for the reveal. */
+    lastRound: null,
     resolved: null,
     queue: [],
     timers: { round: null, intermission: null },
@@ -227,6 +256,12 @@ function publicRoom(room) {
     totalRounds: room.settings.rounds,
     endsAt: room.phase === 'playing' && room.round ? room.round.endsAt : null,
     nextAt: room.phase === 'resolved' && room.intermissionEndsAt ? room.intermissionEndsAt : null,
+    /**
+     * Address of the song about to be played, published only during the
+     * intermission — the same window in which its audio can be fetched. It is
+     * never a spoiler beyond that: it names no track, only a resource.
+     */
+    nextToken: room.phase === 'resolved' && room.pending ? room.pending.token : null,
     players: [...room.players.values()].map((player) => publicPlayer(room, player)),
   };
 }
@@ -333,9 +368,49 @@ function playableRounds(room) {
   return pool.length === 0 ? 0 : Math.min(room.settings.rounds, pool.length);
 }
 
+/**
+ * Restock the shuffled pool. Every track is used once before any repeats, so
+ * a game only hears a song twice when it asked for more rounds than there are
+ * songs to play.
+ */
 function refillQueue(room) {
   const pool = categoryTracks(room.settings.category);
   room.queue = rng.shuffle(pool.map((track) => track.id));
+}
+
+/**
+ * Choose the next round's track, excerpt position and audio token — ONCE.
+ *
+ * This is the single place a multiplayer round is decided, and it runs during
+ * the intermission, before the round it describes is announced. The clients
+ * preload exactly this selection and the round then *promotes* it, so the
+ * audio a player fetched ahead of time and the audio the round plays are the
+ * same resource by construction rather than by coincidence. Selecting a second
+ * time at the round's start is the bug this shape exists to prevent.
+ */
+function selectPendingRound(room) {
+  if (room.queue.length === 0) refillQueue(room);
+
+  let trackId = room.queue.shift();
+  let track = getTrackProvider().find((candidate) => candidate.id === trackId);
+  while (!track && room.queue.length > 0) {
+    // The library changed under us: a deleted file, a rescan mid-game.
+    trace(room, `track ${trackId} left the library; drawing again`);
+    trackId = room.queue.shift();
+    track = getTrackProvider().find((candidate) => candidate.id === trackId);
+  }
+  if (!track) {
+    room.pending = null;
+    return null;
+  }
+
+  room.pending = {
+    token: audioToken(),
+    trackId: track.id,
+    excerptStart: pickExcerptStart(track),
+    duration: track.duration,
+  };
+  return room.pending;
 }
 
 function startGame(room) {
@@ -345,13 +420,16 @@ function startGame(room) {
   room.roundNumber = 0;
   room.phase = 'playing';
   room.queue = [];
-  room.nextTrackId = null;
+  room.pending = null;
+  room.lastRound = null;
   for (const player of room.players.values()) {
     player.totalScore = 0;
     player.status = 'guessing';
     player.ready = false;
   }
-  refillQueue(room);
+  // The first round is drawn the same way every later one is: chosen once,
+  // then promoted. Its clients simply have no intermission to preload in.
+  selectPendingRound(room);
   startRound(room);
   return true;
 }
@@ -359,16 +437,22 @@ function startGame(room) {
 function startRound(room) {
   if (!room.players.size) return;
 
-  // The queue was stocked at the end of the previous round so its first entry
-  // is exactly the song the clients already preloaded.
-  if (room.queue.length === 0) refillQueue(room);
-  room.nextTrackId = null;
-  const trackId = room.queue.shift();
-  const track = getTrackProvider().find((candidate) => candidate.id === trackId);
+  // Promote the round that was chosen at the end of the previous one. Nothing
+  // is drawn here — that is what keeps the preloaded audio and the played
+  // audio the same resource.
+  if (!room.pending) selectPendingRound(room);
+  const chosen = room.pending;
+  if (!chosen) return endGame(room, 'library');
+
+  const track = getTrackProvider().find((candidate) => candidate.id === chosen.trackId);
   if (!track) {
-    // The library changed under us — try the next one, or end the game.
-    if (room.queue.length > 0) return startRound(room);
-    return endGame(room, 'library');
+    // Vanished between the draw and the round; draw again and say so. Clients
+    // hold the previous token, which still resolves to the previous track and
+    // is never played by this round, so nothing hears the wrong song.
+    trace(room, `pending track ${chosen.trackId} left the library before the round started`);
+    room.pending = null;
+    if (!selectPendingRound(room)) return endGame(room, 'library');
+    return startRound(room);
   }
 
   const startedAt = nowMs();
@@ -377,14 +461,21 @@ function startRound(room) {
   room.roundNumber += 1;
   room.phase = 'playing';
   room.resolved = null;
+  room.pending = null;
   room.trackDuration = track.duration;
   room.round = {
     number: room.roundNumber,
+    token: chosen.token,
     trackId: track.id,
-    excerptStart: pickExcerptStart(track),
+    excerptStart: chosen.excerptStart,
     startedAt,
     endsAt: startedAt + roomRoundSeconds(room) * 1000,
   };
+  trace(
+    room,
+    `round=${room.round.number} track=${track.id} excerptStart=${room.round.excerptStart} ` +
+      `audioKey=${room.code}/${room.round.token}`,
+  );
 
   for (const player of room.players.values()) {
     player.step = 0;
@@ -409,6 +500,11 @@ function startRound(room) {
       round: {
         number: room.roundNumber,
         totalRounds: room.settings.rounds,
+        /**
+         * The round's audio address. Every player gets the same one, and it
+         * names exactly one file — the track this round will reveal.
+         */
+        token: room.round.token,
         excerptStart: room.round.excerptStart,
         endsAt: room.round.endsAt,
         durations: config.round.durations,
@@ -506,15 +602,20 @@ function resolveRound(room, reason) {
 
   room.phase = 'resolved';
   room.resolved = { roundNumber, trackId: room.round.trackId, excerptStart: room.round.excerptStart, at: nowMs() };
-  // Decide the next song now (refilling first if the queue ran dry) so every
-  // client can fetch and decode it while the countdown runs, instead of
-  // paying for it when the round begins.
-  if (room.queue.length === 0) refillQueue(room);
-  room.nextTrackId = room.queue[0] ?? null;
   // Keep the song addressable while the reveal plays: the client already has
   // it decoded, and re-decoding the same file for the reveal was pure waste.
-  room.lastAudioTrackId = room.round.trackId;
+  room.lastRound = {
+    number: roundNumber,
+    token: room.round.token,
+    trackId: room.round.trackId,
+    excerptStart: room.round.excerptStart,
+  };
   room.round = null;
+  // Decide the next song now — once — so every client can fetch and decode it
+  // during the countdown, and so the round that follows plays exactly the song
+  // they preloaded rather than a second, independent draw.
+  selectPendingRound(room);
+  trace(room, `resolved round=${roundNumber} revealTrack=${room.lastRound.trackId} pending=${room.pending?.trackId ?? '—'}`);
 
   // The spoiler dam breaks here and only here: title, artist and cover become
   // public the moment the whole room has finished the round.
@@ -532,7 +633,18 @@ function resolveRound(room, reason) {
   for (const player of room.players.values()) {
     send(player.socket, {
       t: 'resolved',
-      round: { number: roundNumber, excerptStart: room.resolved.excerptStart, track: reveal, reason },
+      round: {
+        number: roundNumber,
+        /**
+         * The resolved round's own audio address. The reveal replays the song
+         * the round played — same token, same decoded buffer, same file — so
+         * no other round's audio can be substituted for it.
+         */
+        token: room.lastRound.token,
+        excerptStart: room.resolved.excerptStart,
+        track: reveal,
+        reason,
+      },
       results,
     });
   }
@@ -565,6 +677,7 @@ function endGame(room, reason) {
   clearRoomTimers(room);
   room.phase = 'ended';
   room.round = null;
+  room.pending = null;
   room.intermissionEndsAt = null;
 
   const standings = [...room.players.values()]
@@ -839,9 +952,13 @@ function resumeAfterJoin(room, player) {
       round: {
         number: room.roundNumber,
         totalRounds: room.settings.rounds,
+        // The same token the room is playing: a player who reconnects joins
+        // the round that is running, it does not become a round of its own.
+        token: room.round.token,
         excerptStart: room.round.excerptStart,
         endsAt: room.round.endsAt,
         durations: config.round.durations,
+        attemptMode: room.settings.attemptMode,
       },
     });
     sendSelf(room, player);
@@ -924,6 +1041,11 @@ function handleMessage(socket, message) {
       room.phase = 'lobby';
       room.roundNumber = 0;
       room.resolved = null;
+      // The next game draws its own rounds, with their own tokens. Nothing of
+      // the finished one stays addressable.
+      room.pending = null;
+      room.lastRound = null;
+      room.queue = [];
       for (const other of room.players.values()) {
         other.status = 'lobby';
         other.ready = false;
@@ -1076,35 +1198,27 @@ export function roomCount() {
 }
 
 /**
- * The audio a room is allowed to hear right now — identified by an opaque
- * room code, never by track id, so nothing leaks before the reveal.
+ * The audio behind one token — a pure function of the token, which is the
+ * whole point. The same request always names the same file, so a client that
+ * cached the answer can never be handed a different song for it, whether the
+ * room has moved on, rematched, or been rebuilt since.
+ *
+ * A token is valid while its round is the current one, the one just resolved
+ * (the reveal replays it) or the one being preloaded for the intermission.
+ * After that it is gone, and the honest answer is 404 rather than some other
+ * round's song.
  *
  * @returns {{ relPath: string, fileName: string } | null}
  */
-export function getRoundAudio(code) {
+export function getAudioForToken(code, token) {
   const room = rooms.get(String(code ?? '').toUpperCase());
-  if (!room) return null;
+  if (!room || !token) return null;
 
-  // During the round this is the secret the clients must not learn; after the
-  // reveal the same URL simply keeps serving the song that was just played, so
-  // the post-round playback reuses the buffer the client already decoded.
-  const trackId = room.round ? room.round.trackId : room.phase === 'ended' || room.phase === 'resolved' ? room.lastAudioTrackId : null;
-  if (!trackId) return null;
+  const wanted = String(token);
+  const holder = [room.round, room.lastRound, room.pending].find((entry) => entry && entry.token === wanted);
+  if (!holder) return null;
 
-  const track = getTrackProvider().find((candidate) => candidate.id === trackId);
-  if (!track) return null;
-  return { relPath: track.relPath, fileName: track.fileName };
-}
-
-/**
- * The song the room is about to play, while the reveal and its countdown are
- * on screen. Same rules as the round audio: addressed by room code, no id, no
- * metadata, and only served between rounds.
- */
-export function getUpcomingAudio(code) {
-  const room = rooms.get(String(code ?? '').toUpperCase());
-  if (!room || room.phase !== 'resolved' || !room.nextTrackId) return null;
-  const track = getTrackProvider().find((candidate) => candidate.id === room.nextTrackId);
+  const track = getTrackProvider().find((candidate) => candidate.id === holder.trackId);
   if (!track) return null;
   return { relPath: track.relPath, fileName: track.fileName };
 }

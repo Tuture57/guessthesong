@@ -235,6 +235,151 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
+/* ── Volume ─────────────────────────────────────────────────────────── */
+/*
+ * A speaker the size of the library chip, and a panel that drops under it.
+ * The panel is absolutely positioned so opening it can never move the top bar
+ * — or anything below it — by a single pixel.
+ */
+.volume {
+  position: relative;
+  display: inline-flex;
+}
+
+.volume-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  transition: border-color 0.18s, color 0.18s, background 0.18s;
+}
+
+.volume-toggle:hover {
+  border-color: var(--line-strong);
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.volume[data-state='muted'] .volume-toggle {
+  color: var(--red);
+}
+
+.volume[data-state='muted'] .volume-toggle:hover {
+  background: var(--red-soft);
+}
+
+.volume-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  gap: 7px;
+  width: 186px;
+  padding: 11px 13px 13px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface-solid);
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.45);
+  /* Hidden, but never `display: none`: the slider must stay focusable by
+     keyboard so TAB can reach it. */
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: opacity 0.16s var(--ease), transform 0.16s var(--ease), visibility 0.16s;
+}
+
+.volume:hover .volume-panel,
+.volume:focus-within .volume-panel,
+.volume.is-open .volume-panel {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.volume-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.volume-label {
+  font-size: var(--text-label);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.volume-readout {
+  font-size: var(--text-small);
+  font-weight: 650;
+  color: var(--text);
+}
+
+.volume-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 20px;
+  background: none;
+  cursor: pointer;
+}
+
+.volume-slider:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* Track and thumb are styled twice on purpose: Chromium needs the webkit
+   pseudos, Firefox needs the moz ones, and neither understands the other. */
+.volume-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line-strong);
+}
+
+.volume-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line-strong);
+}
+
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: var(--text);
+  transition: background 0.18s;
+}
+
+.volume-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: var(--text);
+}
+
+.volume-slider:hover::-webkit-slider-thumb {
+  background: var(--green-bright);
+}
+
+.volume-slider:hover::-moz-range-thumb {
+  background: var(--green-bright);
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);

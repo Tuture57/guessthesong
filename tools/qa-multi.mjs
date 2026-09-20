@@ -180,12 +180,35 @@ async function joinRoom(player, code) {
 const durationShown = (page) => page.textContent('.duration-value').then((text) => text.trim());
 
 /**
+ * The audio address of the round the page was last told about. It comes from
+ * the round frame itself, because a round's audio is named by its own opaque
+ * token — "whatever this room is playing" is deliberately not fetchable.
+ */
+const roundToken = (page) =>
+  page.evaluate(() => {
+    // This suite records raw frame text (its spoiler checks grep it), so the
+    // frames are parsed here rather than at capture time.
+    const frames = (window.__mpFrames ?? [])
+      .map((raw) => {
+        try {
+          return JSON.parse(raw);
+        } catch {
+          return null;
+        }
+      })
+      .filter((frame) => frame && frame.t === 'round');
+    return frames.length ? frames[frames.length - 1].round.token : null;
+  });
+
+/**
  * The round's track, identified from outside the clients: the room's opaque
  * audio is compared by size against every library file. This is the tester's
  * way of knowing the answer without any client being told it.
  */
-async function identifyRoundTrack(code, library) {
-  const audio = await (await fetch(`${BASE}/api/multi/audio/${code}`)).arrayBuffer();
+async function identifyRoundTrack(page, code, library) {
+  const token = await roundToken(page);
+  if (!token) return null;
+  const audio = await (await fetch(`${BASE}/api/multi/audio/${code}/${token}`)).arrayBuffer();
   const size = audio.byteLength;
   for (const track of library.tracks) {
     const head = await fetch(`${BASE}/api/audio/${track.id}`, { method: 'HEAD' });
@@ -275,7 +298,7 @@ async function main() {
     await bob.page.waitForSelector('.mp-game');
     await sleep(500);
 
-    const track = await identifyRoundTrack(code, library);
+    const track = await identifyRoundTrack(arthur.page, code, library);
     check('the round track can be identified by the tester', Boolean(track), track?.title);
 
     const arthurFrames = await framesBefore(arthur.page, '"t":"resolved"');
@@ -362,7 +385,7 @@ async function main() {
     check('starting the next round stops the previous playback', liveSources === 0, `${liveSources} source(s)`);
 
     /* ── Scorer: reveal level beats speed, speed breaks ties ──────── */
-    const track2 = await identifyRoundTrack(code, library);
+    const track2 = await identifyRoundTrack(arthur.page, code, library);
     check('round two has its own track', Boolean(track2), track2?.title);
 
     // Bob needs more audio but answers instantly; Arthur recognises it from
@@ -398,7 +421,7 @@ async function main() {
     await bob.page.click('.mp-ready');
     await arthur.page.waitForFunction(() => document.querySelector('.reveal.is-results') === null, null, { timeout: 8000 });
 
-    const track3 = await identifyRoundTrack(code, library);
+    const track3 = await identifyRoundTrack(arthur.page, code, library);
     check('round three has its own track', Boolean(track3), track3?.title);
     // Both answer at the very same reveal level; Arthur is faster.
     const arthurOk = await answerAndWait(arthur, track3.title, 'Arthur round 3');
@@ -481,7 +504,7 @@ async function main() {
     await sleep(400);
     await bob.context.close();
 
-    const track4 = await identifyRoundTrack(code, library);
+    const track4 = await identifyRoundTrack(arthur.page, code, library);
     await arthur.page.waitForTimeout(300);
     await arthur.page.fill('.field-input', track4.title);
     await arthur.page.keyboard.press('Enter');

@@ -24,7 +24,11 @@
     "qa:prod": "node tools/qa-prod.mjs",
     "qa:production": "node tools/prod-smoke.mjs",
     "latency": "node tools/audio-latency.mjs",
-    "qa:ui": "node tools/ui-audit.mjs"
+    "qa:ui": "node tools/ui-audit.mjs",
+    "qa:volume": "node tools/qa-volume.mjs",
+    "qa:sync-invariants": "node tools/mp-sync-invariants.mjs",
+    "qa:sync": "node tools/mp-audio-sync.mjs",
+    "qa:all": "npm run typecheck && npm run qa:sync-invariants && npm run qa:volume && npm run qa:single && npm run qa:multi && npm run qa:modes && npm run qa:fr && npm run qa:ui && npm run qa:sync"
   },
   "dependencies": {
     "chokidar": "^4.0.3",

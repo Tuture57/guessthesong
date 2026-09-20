@@ -71,6 +71,20 @@ export const fr = {
     rescanTitle: 'Analyser à nouveau le dossier de musique',
   },
 
+  /* ── Volume ──────────────────────────────────────────────────────── */
+  volume: {
+    /** The speaker button, when sound is on: it offers to cut it. */
+    mute: 'Couper le son',
+    /** ...and when it is off: it offers to bring it back. */
+    unmute: 'Rétablir le son',
+    /** The slider itself. */
+    level: 'Volume du jeu',
+    /** Spoken by a screen reader instead of the bare "75". */
+    levelValue: 'Volume {percent} pour cent',
+    /** The readout next to the slider. */
+    percent: '{percent} %',
+  },
+
   /* ── Round (solo) ────────────────────────────────────────────────── */
   round: {
     hudRound: 'Manche',

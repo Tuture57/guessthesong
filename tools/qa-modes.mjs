@@ -291,11 +291,14 @@ async function main() {
     const { host: h, code: singleCode } = await room({ attemptMode: 'single', roundSeconds: 60 });
     h.roomCode = singleCode;
     h.send({ t: 'start' });
-    await h.next('round');
+    const singleRound = await h.next('round');
     await h.next('self');
 
-    // Identify the round's track the tester's way: byte length of the room audio.
-    const audio = await (await fetch(`${BASE}/api/multi/audio/${h.roomCode}`)).arrayBuffer().catch(() => null);
+    // Identify the round's track the tester's way: the byte length of the
+    // audio behind the token that round announced.
+    const audio = await (await fetch(`${BASE}/api/multi/audio/${h.roomCode}/${singleRound.round.token}`))
+      .arrayBuffer()
+      .catch(() => null);
     let track = null;
     if (audio) {
       for (const candidate of library.tracks) {

@@ -213,6 +213,57 @@ carries on past the end of the excerpt. The reveal panel shows where the
 excerpt came from ("Playing from 1:17") with a small pause button; `SPACE` does
 the same thing. Starting the next round stops it immediately.
 
+### Volume
+
+One setting for the whole game, in the top bar: a speaker that mutes, and a
+slider from 0 to 100 %. It is not per-screen and not per-mode — a solo excerpt,
+a multiplayer excerpt, the reveal's full song, a replay and the element
+fallback all obey it, and it is stored in `localStorage` as `gts-volume`, so it
+survives rounds, switching between solo and multiplayer, and a reload.
+
+`gts-volume-muted` holds the switch separately from the level, which is what
+makes un-muting return to the exact level you had rather than to full volume.
+
+Inside the engine there is one gain node, and it is the only thing that ever
+sets the output level:
+
+```
+AudioBufferSourceNode → per-playback fade → master gain → destination
+```
+
+A per-playback fade (the click-free entry and exit of an excerpt) sits *below*
+the master, so moving the slider mid-excerpt is heard immediately and disturbs
+no envelope. The master is ramped over 20 ms rather than stepped, because a
+step in gain is an audible click. The fallback `<audio>` element is not on that
+graph and mirrors the same value on its own `.volume`.
+
+### Which song comes next
+
+The server keeps a shuffled pool of the room's category, and every round takes
+the next entry — so a game hears each song once before any song twice, and the
+order differs every game. Songs only repeat when the host asks for more rounds
+than there are songs to play.
+
+That choice is made **once**, at the end of the previous round, and the round
+that follows promotes it rather than drawing again. This is the whole of the
+multiplayer synchronisation guarantee:
+
+```
+end of round N:  the next round is drawn  → { track, excerptStart, token }
+                 every client preloads that token's audio
+start of round N+1: the round *is* that draw — nothing is re-rolled
+end of round N+1:  the reveal looks the track up by the round's own track id
+```
+
+Each round's audio is addressed by an opaque random **token**, minted with
+the track and never reused (`/api/multi/audio/<room>/<token>`). It is the
+reason a client can cache decoded audio safely: the URL cannot mean "whatever
+this room is playing now", so a cached buffer can never turn into a different
+song — across a rematch in the same room, a reconnect, a slow request, or a
+reveal that arrives late. A token that is no longer current, no longer the one
+just resolved and not the one being preloaded is refused rather than answered
+with something else.
+
 ---
 
 ## Configuration
@@ -317,6 +368,9 @@ tools/
   qa-single.mjs        singleplayer end-to-end test
   qa-multi.mjs         multiplayer end-to-end test (two browsers)
   mp-smoke.mjs         multiplayer protocol + scoring-invariant test
+  mp-sync-invariants.mjs  the multiplayer round invariants, seeded
+  mp-audio-sync.mjs    two browsers, audio fingerprinted, rematch included
+  qa-volume.mjs        the global volume control
   shots.mjs            screenshot walkthrough for visual review
 ```
 
@@ -330,12 +384,18 @@ serve` collapses everything into one process and one port.
 
 ```bash
 npm run build
-npm run qa          # singleplayer end-to-end
-npm run qa:multi    # multiplayer end-to-end — starts its own server on :8791
-npm run qa:mp       # room protocol and scoring invariant
-npm run qa:modes    # attempt modes, settings, host authority
-npm run qa:ui       # layout audit at 12 viewports (writes .audit/)
-npm run latency     # audio timing report (see "No waiting on PLAY")
+npm run qa                # singleplayer end-to-end
+npm run qa:multi          # multiplayer end-to-end — starts its own server on :8791
+npm run qa:mp             # room protocol and scoring invariant
+npm run qa:modes          # attempt modes, settings, host authority
+npm run qa:fr             # the French interface, screen by screen
+npm run qa:ui             # layout audit at 12 viewports (writes .audit/)
+npm run latency           # audio timing report (see "No waiting on PLAY")
+
+npm run qa:sync-invariants # round invariants against the real room engine
+npm run qa:sync            # two browsers, audio fingerprinted (starts :8795)
+npm run qa:volume          # volume: output gain, mute, persistence, layout
+npm run qa:all             # typecheck + every suite above, in order
 ```
 
 `npm run qa` drives a real browser through a full game — playback timing at
@@ -354,6 +414,30 @@ board. Screenshots land in `.qa/`.
 `npm run qa:modes` drives the room protocol through all three attempt modes and
 checks the settings rules: host-only changes, live sync to everyone, server-side
 clamping, and the lock once a game starts.
+
+`npm run qa:sync-invariants` is the multiplayer invariant suite: three real
+WebSocket clients against the real room engine, with `Math.random` replaced by
+a seeded generator so "the excerpt start varies" and "the track selection
+varies" are structural facts instead of two rounds that happened to differ. It
+checks the whole checklist — one authoritative track and excerpt per round, the
+freeze across reveals, wrong guesses, skips and reconnects, the reveal's
+metadata matching the audio that was played, the preloaded song being the song
+the next round plays, a rematch reusing nothing, and every excerpt start leaving
+room for the longest reveal.
+
+`npm run qa:sync` opens two browsers and **fingerprints the audio itself**: it
+taps every `AudioBufferSourceNode.start`, hashes the samples handed to the audio
+hardware, and compares that hash with the file of the track the server revealed —
+so "both players heard the same song, from the same second" is measured, not
+inferred. It plays a game and then a rematch in the same room with one player
+reloaded, which is where a cache key based on the round number used to hand a
+player the previous game's song.
+
+`npm run qa:volume` drives the volume control and reads the master gain node out
+of the page, so the slider saying 40 % is only accepted alongside the output
+gain being 0.4. It covers the default, persistence across a reload, mute and
+un-mute keeping the level, keyboard use, the fallback element, a change made
+while an excerpt is playing, and the four required viewports.
 
 `npm run qa:ui` measures the layout of every screen — home, round, reveal,
 multiplayer menu, lobby, in-game, results, error states — at twelve viewports

@@ -239,6 +239,7 @@ async function main() {
       '/api/cover/not-a-track-id',
       '/api/audio/not-a-track-id',
       '/api/multi/audio/ZZZZZ',
+      '/api/multi/audio/ZZZZZ/deadbeefdeadbeef',
       '/api/multi/upcoming/ZZZZZ',
     ];
     for (const url of nasty) {

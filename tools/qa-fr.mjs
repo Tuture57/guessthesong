@@ -298,9 +298,18 @@ const roomTotals = (page) =>
       .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
   });
 
+/** The audio address of the round the page was last told about. */
+const roundToken = (page) =>
+  page.evaluate(() => {
+    const rounds = (window.__mpFrames ?? []).filter((frame) => frame.t === 'round');
+    return rounds.length ? rounds[rounds.length - 1].round.token : null;
+  });
+
 /** Answer correctly using the server's own view of the round's track. */
-async function identifyRoundTrack(code, library) {
-  const audio = await (await fetch(`${BASE}/api/multi/audio/${code}`)).arrayBuffer();
+async function identifyRoundTrack(page, code, library) {
+  const token = await roundToken(page);
+  if (!token) return null;
+  const audio = await (await fetch(`${BASE}/api/multi/audio/${code}/${token}`)).arrayBuffer();
   const size = audio.byteLength;
   for (const track of library.tracks) {
     const head = await fetch(`${BASE}/api/audio/${track.id}`, { method: 'HEAD' });
@@ -429,7 +438,7 @@ async function main() {
     check('the board cannot be opened when there is nothing in it', await host.page.locator('.mp-board-head').isDisabled());
     check('the game screen is French', findEnglish(await host.page.evaluate(READ_CHROME)).length === 0);
 
-    const track1 = await identifyRoundTrack(code, library);
+    const track1 = await identifyRoundTrack(host.page, code, library);
     check('the tester identified the round’s song', Boolean(track1));
 
     const duringRound = await roomTotals(host.page);
@@ -481,7 +490,7 @@ async function main() {
     );
     check('no in-round points are invented', frozen.every((row) => Number.isFinite(row.score)));
 
-    const track2 = await identifyRoundTrack(code, library);
+    const track2 = await identifyRoundTrack(host.page, code, library);
     check('round two has its own song', track2 && track2.id !== track1.id);
     await answer(guest, track2.title);
     await guest.page.waitForSelector('.reveal.is-results', { timeout: ROUND_SECONDS * 1000 + 8000 });
@@ -506,7 +515,7 @@ async function main() {
     /* Both players give up on the last song: it resolves at once, and the
        board behind the reveal is then the end-of-match ranking. The final
        screen has to reproduce it exactly. */
-    const track3 = await identifyRoundTrack(code, library);
+    const track3 = await identifyRoundTrack(host.page, code, library);
     check('the last round has its own song', Boolean(track3));
     await guest.page.click('.mp-giveup');
     await host.page.click('.mp-giveup');

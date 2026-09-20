@@ -16,8 +16,15 @@
  *
  * If a file cannot be decoded at all, playback falls back to an <audio>
  * element so one broken song still plays instead of killing the round.
+ *
+ * Everything audible passes through one `master` gain node, which is the
+ * game's volume setting: per-playback fades sit below it, so changing the
+ * volume mid-excerpt is heard immediately and never touches the envelope. The
+ * fallback element is not on that graph, so it mirrors the same value on its
+ * own `.volume` — one setting, two outputs, no third opinion.
  */
 import { audioConfig } from './types';
+import { volume, VOLUME_RAMP_SECONDS } from './volume';
 
 function audioUrl(id: string): string {
   return `/api/audio/${encodeURIComponent(id)}`;
@@ -101,6 +108,12 @@ class AudioEngine {
   /** Called when playback runs to its end or is interrupted. */
   onEnded: ((kind: PlaybackKind) => void) | null = null;
 
+  constructor() {
+    // The volume setting owns the master gain; this only follows it, so the
+    // slider works before, during and after any playback.
+    volume.subscribe(() => this.applyVolume());
+  }
+
   /* ── Lifecycle ────────────────────────────────────────────────────── */
 
   /** Must be called from a user gesture the first time. */
@@ -114,10 +127,31 @@ class AudioEngine {
       const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       this.ctx = new Ctor();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 1;
+      // The context is created on the first gesture, so it starts at whatever
+      // the player's stored setting already is — never at full volume.
+      this.master.gain.value = volume.effective;
       this.master.connect(this.ctx.destination);
     }
     return this.ctx;
+  }
+
+  /* ── Volume ───────────────────────────────────────────────────────── */
+
+  /**
+   * Mirror the global volume onto the output. The master gain is ramped
+   * rather than set, because a step change in gain is an audible click — and
+   * because the ramp makes a drag of the slider a fade rather than a series
+   * of seams.
+   */
+  private applyVolume(): void {
+    const target = volume.effective;
+    if (this.master && this.ctx) {
+      const now = this.ctx.currentTime;
+      this.master.gain.cancelScheduledValues(now);
+      this.master.gain.setValueAtTime(this.master.gain.value, now);
+      this.master.gain.linearRampToValueAtTime(target, now + VOLUME_RAMP_SECONDS);
+    }
+    if (this.fallbackEl) this.fallbackEl.volume = target;
   }
 
   /** True while sound is actually coming out. */
@@ -532,6 +566,7 @@ class AudioEngine {
     if (!this.fallbackEl) {
       this.fallbackEl = new Audio();
       this.fallbackEl.preload = 'auto';
+      this.fallbackEl.volume = volume.effective;
       // Attached rather than left detached: it behaves predictably that way,
       // and audio elements without `controls` render nothing.
       document.body.append(this.fallbackEl);

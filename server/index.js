@@ -30,8 +30,7 @@ import {
 import {
   attachMultiplayer,
   closeMultiplayer,
-  getRoundAudio,
-  getUpcomingAudio,
+  getAudioForToken,
   listCategories,
   roomCount,
 } from './multiplayer.js';
@@ -220,31 +219,18 @@ app.get('/api/categories', (_req, res) => {
 });
 
 /**
- * In-round audio for a multiplayer room. Addressed by room code, never by
- * track id, so the URL itself carries no spoiler.
+ * A multiplayer round's audio, addressed by room code plus the opaque token
+ * that round was given. Never by track id, so the URL carries no spoiler — and
+ * never by "whatever this room is playing", because the same URL must always
+ * name the same file: the clients cache decoded audio against it, and a URL
+ * whose meaning drifts with the room's clock hands a player the wrong song.
+ *
+ * The same route serves the preloaded next round: during the intermission its
+ * token is published to the room, and it resolves to the track that round will
+ * play.
  */
-app.get('/api/multi/audio/:code', (req, res) => {
-  const audio = getRoundAudio(req.params.code);
-  if (!audio) return res.status(404).end();
-
-  const absPath = resolveInLibrary(audio.relPath);
-  if (!absPath || !fs.existsSync(absPath)) return res.status(410).end();
-
-  res.setHeader('Cache-Control', 'no-store');
-  res.setHeader('Content-Type', contentTypeFor(audio.fileName));
-  res.sendFile(absPath, (error) => {
-    if (error && !res.headersSent) res.status(500).end();
-  });
-});
-
-/**
- * The song the room will play next, fetchable only while the reveal and its
- * countdown are on screen. Same terms as the round audio: room code only, no
- * track id, no metadata — it exists so clients can decode ahead of time and
- * start the next round without a loading pause.
- */
-app.get('/api/multi/upcoming/:code', (req, res) => {
-  const audio = getUpcomingAudio(req.params.code);
+app.get('/api/multi/audio/:code/:token', (req, res) => {
+  const audio = getAudioForToken(req.params.code, req.params.token);
   if (!audio) return res.status(404).end();
 
   const absPath = resolveInLibrary(audio.relPath);

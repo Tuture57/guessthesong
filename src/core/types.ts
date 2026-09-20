@@ -146,6 +146,8 @@ export interface MpRoom {
   totalRounds: number;
   endsAt: number | null;
   nextAt: number | null;
+  /** Address of the next round's audio, published only between rounds. */
+  nextToken: string | null;
   players: MpPlayer[];
 }
 
@@ -174,6 +176,12 @@ export interface MpSelf {
 export interface MpRoundInfo {
   number: number;
   totalRounds: number;
+  /**
+   * This round's audio address. Opaque, unique to the round, and the same for
+   * every player — it is the join between the audio a player hears and the
+   * track the server will reveal.
+   */
+  token: string;
   excerptStart: number;
   endsAt: number;
   durations: number[];
@@ -203,7 +211,14 @@ export interface MpRoundResult {
 }
 
 export interface MpResolved {
-  round: { number: number; excerptStart: number; track: MpRevealTrack | null; reason: string };
+  round: {
+    number: number;
+    /** The resolved round's own audio address: the reveal replays that song. */
+    token: string;
+    excerptStart: number;
+    track: MpRevealTrack | null;
+    reason: string;
+  };
   results: MpRoundResult[];
 }
 

@@ -15,6 +15,7 @@ import { HomeView } from './home';
 import { MultiplayerGame, MultiplayerLobby, MultiplayerMenu, MultiplayerResults } from './multi';
 import { createResults } from './results';
 import { RoundView } from './round';
+import { VolumeControl } from './volume';
 
 export class App {
   private game: Game;
@@ -67,11 +68,18 @@ export class App {
       this.chipText,
     );
 
+    /*
+     * The volume control sits in the top bar so it is on every screen at once
+     * — solo, multiplayer, results — and so it can never push the controls a
+     * round needs off the bottom of the page.
+     */
+    const volumeControl = new VolumeControl();
+
     return h(
       'header',
       { class: 'shell topbar' },
       h('div', { class: 'brand' }, icon('note', 15, 2), h('span', { text: t.brand.name })),
-      h('div', { class: 'topbar-actions' }, this.libraryChip),
+      h('div', { class: 'topbar-actions' }, volumeControl.root, this.libraryChip),
     );
   }
 

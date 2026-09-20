@@ -365,18 +365,24 @@ export class Multiplayer {
     this.send({ t: 'back-to-lobby' });
   }
 
-  /** The opaque audio URL for the room's current round. */
-  audioUrl(): string | null {
-    return this.room ? `/api/multi/audio/${encodeURIComponent(this.room.code)}` : null;
+  /**
+   * The opaque audio URL for one round's token. The token is minted per round
+   * and never reused, so this URL names exactly one file for as long as it
+   * exists — which is what makes it safe to cache against.
+   */
+  audioUrl(token: string): string | null {
+    if (!this.room || !token) return null;
+    return `/api/multi/audio/${encodeURIComponent(this.room.code)}/${encodeURIComponent(token)}`;
   }
 
   /**
-   * Cache key for the current round's audio. The URL is stable across rounds,
-   * so the key must change with the round or a stale decode would be replayed.
+   * Cache key for one round's audio. Derived from the token, not from the
+   * round number: round numbers restart with every rematch in the same room,
+   * and a key that repeats would serve the previous game's decoded song.
    */
-  audioKey(): string | null {
-    if (!this.room || !this.round) return null;
-    return `mp:${this.room.code}:r${this.round.number}`;
+  audioKey(token: string): string | null {
+    if (!this.room || !token) return null;
+    return `mp:${this.room.code}:${token}`;
   }
 
   /* ── Server messages ──────────────────────────────────────────────── */
