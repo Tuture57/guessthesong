@@ -32,7 +32,9 @@ function check(name, ok, detail = '') {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const near = (value, wanted, tolerance = 0.002) => Math.abs(value - wanted) <= tolerance;
 
+/** A server of our own, unless `GTS_VOLUME_URL` names a deployed copy. */
 async function startServer() {
+  if (process.env.GTS_VOLUME_URL) return null;
   const child = spawn(process.execPath, ['server/index.js', '--prod'], {
     env: { ...process.env, PORT: String(PORT), GTS_MP_IDLE_SECONDS: '20' },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -459,7 +461,7 @@ async function main() {
     await context.close();
   } finally {
     await browser.close();
-    server.kill();
+    server?.kill();
   }
 
   console.log(`\n${checks - failures.length}/${checks} checks passed`);

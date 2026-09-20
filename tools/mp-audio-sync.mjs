@@ -40,7 +40,13 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /* ── Server under test ──────────────────────────────────────────────── */
 
+/**
+ * A server of our own, unless one was named. Pointing `GTS_SYNC_URL` at a
+ * deployed copy runs the very same checks against production — the audio
+ * fingerprint does not care whose server it is.
+ */
 async function startServer() {
+  if (process.env.GTS_SYNC_URL) return null;
   const child = spawn(process.execPath, ['server/index.js', '--prod'], {
     env: {
       ...process.env,
@@ -345,7 +351,7 @@ async function main() {
     await bob.context.close();
   } finally {
     await browser.close();
-    server.kill();
+    server?.kill();
   }
 
   console.log(`\n${checks - failures.length}/${checks} checks passed`);
