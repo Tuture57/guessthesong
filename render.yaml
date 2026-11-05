@@ -17,13 +17,16 @@ services:
     # Free instance: spins down after 15 minutes without traffic and takes
     # about a minute to come back. WebSocket messages count as traffic, so an
     # active game keeps it awake. No persistent disk — nothing survives a
-    # deploy, a restart or a spin-down, which is why the music ships in the
-    # repository rather than being uploaded at runtime.
+    # deploy, a restart or a spin-down, so the music has to arrive with the
+    # code. This public repository carries none: deploy from a private copy
+    # that tracks songs/.
     plan: free
     # Closest region to France.
     region: frankfurt
     branch: main
-    autoDeployTrigger: commit
+    # Deploys are started by hand: a deploy from a copy without music serves
+    # an empty library.
+    autoDeployTrigger: off
 
     # Declared for the record. The live association was made on the service
     # itself, and a Blueprint only declares it — the DNS record is always set

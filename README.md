@@ -13,16 +13,19 @@ a room code you share.
 
 Everything runs on your machine. No uploads, no streaming service: the app
 reads the folder you point it at and serves the audio to your own browser.
+This repository ships no music: bring your own files (see [Your music](#your-music)).
 
 The whole interface is in French, and every string a player can read lives in
 one file: [`src/i18n/fr.ts`](src/i18n/fr.ts). To deploy it on a host, see
-[DEPLOY-INFOMANIAK.md](DEPLOY-INFOMANIAK.md).
+[DEPLOY-INFOMANIAK.md](DEPLOY-INFOMANIAK.md) (in French) or [`render.yaml`](render.yaml).
+
+![A singleplayer round: two wrong guesses, the excerpt revealed up to 2 seconds](docs/round.png)
 
 ---
 
 ## Getting started
 
-Requires **Node.js 18 or newer** ([nodejs.org](https://nodejs.org)).
+Requires **Node.js 20 or newer** ([nodejs.org](https://nodejs.org)).
 
 ```bash
 npm install
@@ -351,7 +354,7 @@ the one that counts.
 
 ```
 config.js              all tunable values, shared by server and client
-shared/                excerpt picking, scoring and matching rules — the same
+shared/                excerpt picking, scoring and room messages — the same
                        code runs on the server and in the browser
 server/
   index.js             HTTP API: library, audio, cover art, categories, rooms
@@ -381,6 +384,8 @@ serve` collapses everything into one process and one port.
 ---
 
 ## Testing
+
+The suites play real audio, so put a few tracks in `songs/` first.
 
 ```bash
 npm run build
