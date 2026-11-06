@@ -2,6 +2,7 @@
   "name": "guessthesong",
   "private": true,
   "version": "1.0.0",
+  "license": "MIT",
   "type": "module",
   "description": "Devinez vos chansons à partir d'un extrait de 0,1 seconde.",
   "engines": {

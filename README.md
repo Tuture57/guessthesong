@@ -481,3 +481,10 @@ On one machine that is `localhost`; for friends on the same network, share
 
 **Port already in use** — change `server.port` in `config.js`. The dev proxy
 follows it automatically.
+
+---
+
+## License
+
+The code is released under the [MIT License](LICENSE). The repository ships no music: the songs you add stay
+yours, under their own rights.
